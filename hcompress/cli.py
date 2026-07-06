@@ -166,10 +166,13 @@ def decompress_cmd(
         else:
             out = str(p) + ".out"
 
-    # If not HCF, try format handlers (gzip, zip, tar, bz2, xz)
+    # If not HCF, try format handler plugins
     if not input_path.lower().endswith(".hcf"):
-        from hcompress.formats import detect, decompress as fmt_decompress, supported_formats
-        fmt = detect(input_path)
+        try:
+            from hcompress.plugins.builtin.formats import detect, decompress as fmt_decompress
+            fmt = detect(input_path)
+        except ImportError:
+            fmt = None
         if fmt:
             console.print(f"[cyan]检测到格式: {fmt}[/]")
             if os.path.exists(out) and not force:
