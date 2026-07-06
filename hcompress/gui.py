@@ -250,11 +250,17 @@ class HcompressGUI:
                 )
                 ok = True
             else:
-                cfg = DecompressConfig()
+                from hcompress.plugins import PluginRegistry
+                reg = PluginRegistry()
+                reg.discover_builtin()
+                cfg = DecompressConfig(registry=reg)
                 r = decompress(self.input_file, self.output_file, cfg)
+                import os as _os
+                actual = _os.path.getsize(self.output_file) if _os.path.exists(self.output_file) else 0
                 summary = (
                     f"解压完成!\n"
-                    f"大小: {self._fsize(r.original_size)}\n"
+                    f"实际输出: {self._fsize(actual)}\n"
+                    f"header 声称: {self._fsize(r.original_size)}\n"
                     f"耗时: {r.elapsed_ms:.1f} ms\n"
                     f"校验: {'✓ 通过' if r.checksum_ok else '✗ 失败'}"
                 )

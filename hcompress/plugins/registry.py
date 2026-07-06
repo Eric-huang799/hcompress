@@ -78,9 +78,22 @@ class PluginRegistry:
         return count
 
     def discover_builtin(self) -> int:
-        """Load built-in plugins shipped with hcompress."""
+        """Load built-in plugins shipped with hcompress.
+
+        Handles both normal installs and PyInstaller-frozen bundles.
+        """
+        # Normal Python path
         builtin_dir = os.path.join(os.path.dirname(__file__), "builtin")
-        return self.discover([builtin_dir])
+        paths = [builtin_dir]
+
+        # PyInstaller bundle: data files extracted to sys._MEIPASS
+        import sys
+        if getattr(sys, "frozen", False):
+            meipass = getattr(sys, "_MEIPASS", "")
+            if meipass:
+                paths.append(os.path.join(meipass, "plugins", "builtin"))
+
+        return self.discover(paths)
 
     # ── manual registration ─────────────────────────────────────────────
 
