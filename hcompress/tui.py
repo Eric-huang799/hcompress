@@ -14,7 +14,8 @@ from textual.widgets import (
     ProgressBar, Static, Switch
 )
 
-from hcompress.engine import compress, compress_parallel, CompressConfig, DecompressConfig
+from hcompress.engine import compress, CompressConfig, DecompressConfig
+from hcompress.parallel import compress_parallel
 from hcompress.plugins import PluginRegistry
 
 
