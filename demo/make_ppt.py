@@ -177,16 +177,40 @@ add_placeholder(s, 0.8, 2.1, 5.8, 2.8, "📷 编码/解码对比柱状图")
 add_placeholder(s, 7.0, 2.1, 5.5, 2.8, "📷 不同文件类型压缩率对比")
 
 perf_text = [
-    "• 编码加速 4.4×（385ms → 88ms）",
-    "• 解码加速 29.5×（809ms → 28ms）",
+    "• C 扩展编码加速 4.4×（385ms → 88ms）",
+    "• C 扩展解码加速 29.5×（809ms → 28ms）",
+    "• 多进程压缩加速 3.1×（4 workers: 900ms → 291ms）",
     "• 文本压缩率稳定 50% 左右",
-    "• 速度约 5-6 MB/s（当前 Python 瓶颈在 I/O）",
     "• 二进制/已压缩文件 — 几乎无效果（正常现象）",
+    "• Python GIL 绕过：ProcessPoolExecutor + C 扩展",
 ]
 for i, line in enumerate(perf_text):
     add_text(s, 0.8, 5.3 + i * 0.4, 11, 0.35, line, 13, GRAY_600)
 
-# ── Slide 7: 插件系统 ──
+# ── Slide 7: 多线程并行 ──
+s = add_blank_slide()
+add_text(s, 0.8, 0.5, 10, 0.6, "多进程并行压缩", 32, BLACK, True)
+add_line(s, 0.8, 1.2, 11.7, GRAY_200)
+add_placeholder(s, 0.8, 1.6, 6.0, 5.4, "📷 多线程架构图 / 性能对比图")
+add_text(s, 7.5, 1.6, 5, 0.4, "ProcessPoolExecutor", 20, BLACK, True)
+mt_points = [
+    "• Python GIL 绕过：多进程替代多线程",
+    "• 大文件自动分块，每块独立压缩",
+    "• C 扩展 + 多进程 = 最大性能",
+    "",
+    "实测数据（5.2 MB 文本）：",
+    "  单线程:  900 ms",
+    "  2 进程:  377 ms (2.4×)",
+    "  4 进程:  291 ms (3.1×)",
+    "",
+    "HCF 多块格式：",
+    "  [Header] [BlockCount]",
+    "  [Len₁][Data₁][Len₂][Data₂]...",
+]
+for i, txt in enumerate(mt_points):
+    add_text(s, 7.5, 2.2 + i * 0.38, 5, 0.35, txt, 13, GRAY_800)
+
+# ── Slide 8: 插件系统 ──
 s = add_blank_slide()
 add_text(s, 0.8, 0.5, 10, 0.6, "插件架构", 32, BLACK, True)
 add_line(s, 0.8, 1.2, 11.7, GRAY_200)

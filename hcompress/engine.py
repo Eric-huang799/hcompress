@@ -211,6 +211,28 @@ def compress(
         original_size=original_size,
     )
 
+    # --- check for parallel plugin ---
+    use_parallel = False
+    parallel_workers = 4
+    for hook in config.hooks:
+        if type(hook).__name__ == "ParallelCompressPlugin":
+            hook.on_start(ctx)
+            if getattr(ctx, "_parallel_enabled", False):
+                use_parallel = True
+                parallel_workers = getattr(ctx, "_parallel_workers", 4)
+            break
+
+    if use_parallel and not is_directory:
+        from hcompress.parallel import compress_parallel
+        r = compress_parallel(input_path, output_path, level=config.level, workers=parallel_workers)
+        stats.compressed_size = r["compressed_size"]
+        stats.ratio = r["ratio"]
+        stats.elapsed_ms = r["elapsed_ms"]
+        for hook in config.hooks:
+            if type(hook).__name__ == "ParallelCompressPlugin":
+                hook.on_done(ctx, stats)
+        return stats
+
     # --- checksum ---
     checksummer = config.checksum or _default_checksum()
     stats.checksum = checksummer.compute(data)
