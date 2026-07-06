@@ -313,6 +313,13 @@ def plugin_list() -> None:
                 console.print(f"  [green]●[/] {type(p).__name__}  ([dim]{cat}[/])")
 
 
+@main.command(name="tui")
+def tui_cmd() -> None:
+    """Launch the Textual terminal user interface."""
+    from hcompress.tui import main as tui_main
+    tui_main()
+
+
 @main.command(name="gui")
 def gui_cmd() -> None:
     """Launch the graphical user interface."""
