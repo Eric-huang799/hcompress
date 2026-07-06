@@ -2,6 +2,8 @@
 
 **High-performance Canonical Huffman compression tool with plugin architecture.**
 
+**English** | [中文](README_CN.md)
+
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com)
 [![Tests](https://img.shields.io/badge/Tests-69%2F69%20passed-green)](tests/)
