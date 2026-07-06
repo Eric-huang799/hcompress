@@ -120,8 +120,10 @@ def main(ctx: click.Context) -> None:
 @click.option("--level", type=click.IntRange(0, 9), default=6, help="Compression level (0-9)")
 @click.option("-f", "--force", is_flag=True, help="Overwrite existing output file")
 @click.option("--no-checksum", is_flag=True, help="Skip CRC-32 (not recommended)")
+@click.option("--plugin-dir", multiple=True, help="Extra plugin search directory")
 def compress_cmd(
-    input_path: str, output: str | None, level: int, force: bool, no_checksum: bool
+    input_path: str, output: str | None, level: int, force: bool, no_checksum: bool,
+    plugin_dir: tuple[str, ...],
 ) -> None:
     """Compress INPUT_PATH into an HCF archive."""
     out = output or _output_path(input_path, ".hcf")
@@ -130,9 +132,12 @@ def compress_cmd(
         console.print(f"[red]✗[/] Output file [bold]{out}[/] already exists. Use [bold]-f[/] to overwrite.")
         raise SystemExit(1)
 
-    config = CompressConfig(level=level)
-    # no_checksum is a v1 placeholder — checksum is always computed;
-    # in future versions --no-checksum will skip the computation.
+    from hcompress.plugins import PluginRegistry
+    registry = PluginRegistry()
+    registry.discover(list(plugin_dir))
+    registry.discover_builtin()
+
+    config = CompressConfig(level=level, registry=registry)
 
     _run_with_progress(
         lambda: compress(input_path, out, config),
