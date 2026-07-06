@@ -26,26 +26,50 @@ FLAG_DIRECTORY = 1 << 8  # bit 8: archive contains a directory tree
 _TERMINATOR = struct.pack("<I", 0)  # path_len = 0 → end
 
 
-def pack_dir(dir_path: str, on_skip=None) -> bytes:
+def pack_dir(dir_path: str, on_skip=None) -> tuple[bytes, int]:
     """Walk *dir_path* and produce an archive byte stream.
 
     Only regular files are included.  Empty directories, symlinks,
-    and files that cannot be read (permission errors) are skipped.
-    If *on_skip* is provided it is called with the path and exception
-    for each skipped file.
+    and files that cannot be read (permission / locked) are silently
+    skipped.  Returns ``(archive_bytes, skipped_count)``.
     """
     buf = bytearray()
     base = Path(dir_path).resolve()
     skipped = 0
 
-    for root, dirs, files in os.walk(dir_path):
+    # os.walk itself can raise PermissionError on inaccessible subdirs
+    def safe_walk(path):
+        try:
+            for root, dirs, files in os.walk(path):
+                # Remove dirs we can't access so os.walk doesn't descend into them
+                accessible = []
+                for d in dirs:
+                    try:
+                        os.listdir(os.path.join(root, d))
+                        accessible.append(d)
+                    except (OSError, PermissionError):
+                        if on_skip:
+                            on_skip(os.path.join(root, d), PermissionError("cannot list directory"))
+                dirs[:] = accessible
+                yield root, dirs, files
+        except (OSError, PermissionError) as exc:
+            if on_skip:
+                on_skip(path, exc)
+
+    for root, dirs, files in safe_walk(dir_path):
         for name in sorted(files):
             full = os.path.join(root, name)
-            rel = str(Path(full).resolve().relative_to(base)).replace("\\", "/")
             try:
+                # skip locked / unreadable files
+                if not os.access(full, os.R_OK):
+                    skipped += 1
+                    if on_skip:
+                        on_skip(full, PermissionError("no read permission"))
+                    continue
+                rel = str(Path(full).resolve().relative_to(base)).replace("\\", "/")
                 with open(full, "rb") as f:
                     content = f.read()
-            except (OSError, PermissionError) as exc:
+            except Exception as exc:
                 skipped += 1
                 if on_skip:
                     on_skip(full, exc)
