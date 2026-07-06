@@ -18,9 +18,9 @@ class HcompressGUI:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("hcompress — Canonical Huffman 压缩工具")
-        self.root.geometry("580x520")
-        self.root.resizable(False, False)
-        self._center_window()
+        self.root.geometry("960x680")
+        self.root.minsize(600, 440)
+        self.root.configure(bg="#1e1e2e")
 
         # Catppuccin Mocha palette
         self.BG = "#1e1e2e"
@@ -35,8 +35,11 @@ class HcompressGUI:
         self.root.configure(bg=self.BG)
         self.input_file: str = ""
         self.output_file: str = ""
+        self._fullscreen = False
 
         self._build()
+        self._bind_keys()
+        self._center_window()
         self.root.mainloop()
 
     # ── UI build ────────────────────────────────────────────────────────
@@ -45,10 +48,20 @@ class HcompressGUI:
         bg, fg, accent, card, green = self.BG, self.FG, self.ACCENT, self.CARD, self.GREEN
 
         # Title
-        tk.Label(self.root, text="hcompress", font=("Segoe UI", 24, "bold"),
-                 fg=accent, bg=bg).pack(pady=(24, 0))
-        tk.Label(self.root, text="Canonical Huffman 压缩 / 解压工具",
-                 font=("Segoe UI", 10), fg=fg, bg=bg).pack(pady=(0, 16))
+        title_frame = tk.Frame(self.root, bg=bg)
+        title_frame.pack(pady=(24, 0), fill=tk.X)
+        tk.Label(title_frame, text="hcompress", font=("Segoe UI", 28, "bold"),
+                 fg=accent, bg=bg).pack()
+        tk.Label(title_frame, text="Canonical Huffman 压缩 / 解压工具",
+                 font=("Segoe UI", 11), fg=fg, bg=bg).pack(pady=(0, 10))
+
+        # Fullscreen button (top-right corner area)
+        self.fullscreen_btn = tk.Button(
+            self.root, text="⛶ 全屏", command=self._toggle_fullscreen,
+            font=("Segoe UI", 9), bg=self.CARD, fg=self.SUBTLE,
+            relief=tk.FLAT, padx=8, pady=2, cursor="hand2",
+        )
+        self.fullscreen_btn.place(relx=1.0, x=-14, y=10, anchor="ne")
 
         # ── Mode ──
         self.mode_var = tk.StringVar(value="compress")
@@ -129,10 +142,29 @@ class HcompressGUI:
 
         # ── Result ──
         self.result_text = tk.Text(
-            self.root, font=("Cascadia Code", 9), bg=card, fg=fg, relief=tk.FLAT,
-            height=7, state=tk.DISABLED, wrap=tk.WORD, borderwidth=0,
+            self.root, font=("Cascadia Code", 10), bg=card, fg=fg, relief=tk.FLAT,
+            height=8, state=tk.DISABLED, wrap=tk.WORD, borderwidth=0,
         )
-        self.result_text.pack(pady=(10, 0), padx=40, fill=tk.X)
+        self.result_text.pack(pady=(14, 12), padx=40, fill=tk.BOTH, expand=True)
+
+    # ── key bindings ────────────────────────────────────────────────────
+
+    def _bind_keys(self) -> None:
+        self.root.bind("<F11>", lambda e: self._toggle_fullscreen())
+        self.root.bind("<Escape>", lambda e: self._exit_fullscreen())
+
+    def _toggle_fullscreen(self) -> None:
+        self._fullscreen = not self._fullscreen
+        self.root.attributes("-fullscreen", self._fullscreen)
+        self.fullscreen_btn.config(
+            text="⛶ 退出全屏" if self._fullscreen else "⛶ 全屏"
+        )
+
+    def _exit_fullscreen(self) -> None:
+        if self._fullscreen:
+            self._fullscreen = False
+            self.root.attributes("-fullscreen", False)
+            self.fullscreen_btn.config(text="⛶ 全屏")
 
     # ── actions ─────────────────────────────────────────────────────────
 
@@ -292,7 +324,7 @@ class HcompressGUI:
 
     def _center_window(self) -> None:
         self.root.update_idletasks()
-        w, h = 580, 520
+        w, h = 960, 680
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
