@@ -189,7 +189,13 @@ def compress(
     # --- read input (handle directories) ---
     is_directory = os.path.isdir(input_path)
     if is_directory:
-        data = pack_dir(input_path)
+        skipped = []
+        data, skip_count = pack_dir(input_path, on_skip=lambda p, e: skipped.append(p))
+        if skip_count > 0:
+            import sys
+            print(f"Warning: skipped {skip_count} unreadable file(s):", file=sys.stderr)
+            for p in skipped[:10]:
+                print(f"  - {p}", file=sys.stderr)
     else:
         with open(input_path, "rb") as f:
             data = f.read()

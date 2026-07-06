@@ -26,14 +26,17 @@ FLAG_DIRECTORY = 1 << 8  # bit 8: archive contains a directory tree
 _TERMINATOR = struct.pack("<I", 0)  # path_len = 0 → end
 
 
-def pack_dir(dir_path: str) -> bytes:
+def pack_dir(dir_path: str, on_skip=None) -> bytes:
     """Walk *dir_path* and produce an archive byte stream.
 
-    Only regular files are included.  Empty directories and symlinks
-    are skipped.
+    Only regular files are included.  Empty directories, symlinks,
+    and files that cannot be read (permission errors) are skipped.
+    If *on_skip* is provided it is called with the path and exception
+    for each skipped file.
     """
     buf = bytearray()
     base = Path(dir_path).resolve()
+    skipped = 0
 
     for root, dirs, files in os.walk(dir_path):
         for name in sorted(files):
@@ -42,7 +45,10 @@ def pack_dir(dir_path: str) -> bytes:
             try:
                 with open(full, "rb") as f:
                     content = f.read()
-            except OSError:
+            except (OSError, PermissionError) as exc:
+                skipped += 1
+                if on_skip:
+                    on_skip(full, exc)
                 continue
             path_enc = rel.encode("utf-8")
             buf += struct.pack("<I", len(path_enc))
@@ -51,7 +57,7 @@ def pack_dir(dir_path: str) -> bytes:
             buf += content
 
     buf += _TERMINATOR
-    return bytes(buf)
+    return bytes(buf), skipped
 
 
 def unpack_dir(data: bytes, output_dir: str) -> list[str]:
