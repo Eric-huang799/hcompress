@@ -63,7 +63,7 @@ class HcompressTUI(App[None]):
     #progress { height: 3; margin-top: 1; background: #16162a; padding: 0 2; }
     #progress ProgressBar { margin: 1 0; }
 
-    .stat-label { color: #666; text-style: bold; text-transform: uppercase; }
+    .stat-label { color: #666; text-style: bold; }
     .stat-value { text-style: bold; }
     .white { color: #eee; }
     .green { color: #3ec97e; }
