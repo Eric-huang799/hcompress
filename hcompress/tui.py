@@ -134,7 +134,8 @@ class HcompressTUI(App[None]):
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "mode-list":
-            self.mode = "compress" if event.item_index == 0 else "decompress"
+            idx = event.item.id if hasattr(event.item, 'id') else 0
+            self.mode = "compress" if idx == 0 else "decompress"
             btn = self.query_one("#btn-go", Button)
             btn.label = "⚡ 开始压缩" if self.mode == "compress" else "📂 开始解压"
 
