@@ -112,6 +112,73 @@ def _decompress_bz2(filepath: str, output_dir: str) -> None:
 
 register(b"BZh", "bzip2", _decompress_bz2)
 
+# ── 7z (.7z) ────────────────────────────────────────────────────────────────
+
+def _decompress_7z(filepath: str, output_dir: str) -> None:
+    import py7zr
+    with py7zr.SevenZipFile(filepath, "r") as zf:
+        zf.extractall(output_dir)
+
+
+register(b"7z\xbc\xaf\x27\x1c", "7z", _decompress_7z)
+
+# ── RAR (.rar) ──────────────────────────────────────────────────────────────
+
+def _decompress_rar(filepath: str, output_dir: str) -> None:
+    import rarfile
+    with rarfile.RarFile(filepath, "r") as rf:
+        rf.extractall(output_dir)
+
+
+register(b"Rar!\x1a\x07\x00", "rar (v1.5)", _decompress_rar)
+register(b"Rar!\x1a\x07\x01\x00", "rar (v5)", _decompress_rar)
+
+# ── Zstd (.zst / .zstd) ─────────────────────────────────────────────────────
+
+def _decompress_zstd(filepath: str, output_dir: str) -> None:
+    import zstandard as zstd
+    out_name = os.path.basename(filepath)
+    for ext in (".zst", ".zstd"):
+        if out_name.endswith(ext):
+            out_name = out_name[:-len(ext)]
+            break
+    out_path = os.path.join(output_dir, out_name)
+    with open(filepath, "rb") as f_in:
+        dctx = zstd.ZstdDecompressor()
+        with open(out_path, "wb") as f_out:
+            dctx.copy_stream(f_in, f_out)
+
+
+register(b"\x28\xb5\x2f\xfd", "zstd", _decompress_zstd)
+
+# ── Brotli (.br) ────────────────────────────────────────────────────────────
+
+def _decompress_brotli(filepath: str, output_dir: str) -> None:
+    import brotli
+    out_name = os.path.basename(filepath).removesuffix(".br")
+    out_path = os.path.join(output_dir, out_name)
+    with open(filepath, "rb") as f_in:
+        data = brotli.decompress(f_in.read())
+    with open(out_path, "wb") as f_out:
+        f_out.write(data)
+
+
+register(b"\xce\xb2\xcf\x81", "brotli", _decompress_brotli)
+
+# ── LZ4 (.lz4) ──────────────────────────────────────────────────────────────
+
+def _decompress_lz4(filepath: str, output_dir: str) -> None:
+    import lz4.frame
+    out_name = os.path.basename(filepath).removesuffix(".lz4")
+    out_path = os.path.join(output_dir, out_name)
+    with open(filepath, "rb") as f_in:
+        data = lz4.frame.decompress(f_in.read())
+    with open(out_path, "wb") as f_out:
+        f_out.write(data)
+
+
+register(b"\x04\x22\x4d\x18", "lz4", _decompress_lz4)
+
 # ── Info ────────────────────────────────────────────────────────────────────
 
 def supported_formats() -> list[str]:
