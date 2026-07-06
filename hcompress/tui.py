@@ -149,12 +149,12 @@ class HcompressTUI(App[None]):
                 self.app.action_decompress()
 
     def action_pick_file(self) -> None:
-        from tkinter import filedialog
-        path = filedialog.askopenfilename(title="选择文件")
-        if path:
-            path_input = self.query_one("#path-input", Input)
-            path_input.value = path
+        path_input = self.query_one("#path-input", Input)
+        path = os.path.expanduser(path_input.value.strip())
+        if path and os.path.isfile(path):
             self._add_file(path)
+        elif path:
+            self.notify("文件不存在: " + path, title="❌", severity="error")
 
     def _add_file(self, path: str) -> None:
         name = os.path.basename(path)
