@@ -87,6 +87,10 @@ def pack_dir(dir_path: str, on_skip=None) -> tuple[bytes, int]:
 def unpack_dir(data: bytes, output_dir: str) -> list[str]:
     """Extract an archive byte stream into *output_dir*.
 
+    If *output_dir* already exists and is non-empty, files inside it
+    may be overwritten.  This is intentional — use ``-f`` / ``--force``
+    semantics in the caller if needed.
+
     Returns a list of created file paths.
     """
     os.makedirs(output_dir, exist_ok=True)

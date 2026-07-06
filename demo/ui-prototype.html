@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="system">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hcompress v2 — UI Prototype</title>
+<style>
+  /* ── Theme Engine ── */
+  :root {
+    --bg: #f8f8fa; --surface: #ffffff; --card: #f0f0f4;
+    --border: rgba(0,0,0,.06); --hover: rgba(0,0,0,.03);
+    --fg: #1a1a1f; --muted: #6e6e7a; --dim: #9e9ea8;
+    --accent: #4f6ef6; --accent2: #1aab8e; --green: #1e9d5b;
+    --yellow: #c28b0a; --red: #d94040; --purple: #7c5ce7;
+    --radius: 16px; --radius-sm: 10px;
+    --shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  [data-theme="dark"] {
+    --bg: #06060a; --surface: #0d0d14; --card: #13131f;
+    --border: rgba(255,255,255,.06); --hover: rgba(255,255,255,.04);
+    --fg: #e4e4ed; --muted: #7b7b8a; --dim: #4a4a58;
+    --accent: #6c8cff; --accent2: #45d9c1; --green: #3ec97e;
+    --yellow: #e5b83c; --red: #e5535b; --purple: #a78bfa;
+    --shadow: 0 8px 32px rgba(0,0,0,.4);
+  }
+  @media (prefers-color-scheme: dark) {
+    [data-theme="system"] {
+      --bg: #06060a; --surface: #0d0d14; --card: #13131f;
+      --border: rgba(255,255,255,.06); --hover: rgba(255,255,255,.04);
+      --fg: #e4e4ed; --muted: #7b7b8a; --dim: #4a4a58;
+      --accent: #6c8cff; --accent2: #45d9c1; --green: #3ec97e;
+      --yellow: #e5b83c; --red: #e5535b; --purple: #a78bfa;
+      --shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    display:flex; height:100vh; overflow:hidden; user-select:none;
+    transition: background .3s, color .3s;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 240px; background: var(--surface); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:20px 14px; gap:6px; flex-shrink:0;
+    transition: background .3s;
+  }
+  .sidebar .logo {
+    font-size:1.3em; font-weight:700; color:var(--accent); letter-spacing:-.5px;
+    padding:0 6px 18px; display:flex; align-items:baseline; gap:4px;
+  }
+  .sidebar .logo span { color: var(--muted); font-weight:400; font-size:.65em; }
+  .nav-item {
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    border-radius:10px; font-size:.88em; cursor:pointer; transition:all .15s;
+    color: var(--muted);
+  }
+  .nav-item:hover { background: var(--hover); color: var(--fg); }
+  .nav-item.active { background: rgba(79,110,246,.08); color: var(--accent); font-weight:600; }
+  .nav-item .badge { margin-left:auto; background:var(--accent); color:#fff; font-size:.7em; padding:2px 7px; border-radius:20px; }
+
+  /* ── Theme switcher ── */
+  .theme-row {
+    display:flex; gap:4px; padding:6px; background:var(--bg); border-radius:10px;
+    margin-top: 4px;
+  }
+  .theme-btn {
+    flex:1; padding:6px 0; border:none; border-radius:7px; font-size:.75em;
+    cursor:pointer; background:transparent; color:var(--muted);
+    transition:all .15s; font-weight:500;
+  }
+  .theme-btn.active { background:var(--surface); color:var(--fg); box-shadow:0 1px 3px rgba(0,0,0,.1); }
+  [data-theme="dark"] .theme-btn.active { box-shadow:0 1px 3px rgba(0,0,0,.3); }
+
+  .sidebar .spacer { flex:1; }
+
+  /* ── Main ── */
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .toolbar {
+    display:flex; align-items:center; gap:10px; padding:16px 24px;
+    border-bottom:1px solid var(--border); background: var(--surface);
+    transition: background .3s;
+  }
+  .toolbar .path {
+    flex:1; background:var(--bg); border:1px solid var(--border); border-radius:10px;
+    padding:9px 14px; font-size:.84em; color: var(--muted); transition: background .3s;
+    font-family:"Cascadia Code",monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .btn {
+    padding:9px 18px; border-radius:10px; font-size:.85em; font-weight:600;
+    cursor:pointer; border:none; transition:all .15s; display:flex; align-items:center; gap:6px;
+  }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { filter:brightness(1.12); transform:translateY(-1px); box-shadow:0 4px 16px rgba(79,110,246,.25); }
+  .btn-outline { background:transparent; border:1px solid var(--border); color:var(--fg); }
+  .btn-outline:hover { background:var(--hover); border-color:var(--dim); }
+  .btn-ghost { background:transparent; color:var(--muted); padding:6px 10px; }
+  .btn-ghost:hover { color:var(--fg); background:var(--hover); }
+
+  /* ── Content ── */
+  .content { flex:1; padding:24px; overflow-y:auto; display:flex; flex-direction:column; gap:20px; }
+  .dropzone {
+    border:2px dashed var(--border); border-radius:var(--radius);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:50px 20px; cursor:pointer; transition:all .25s; background:var(--card);
+  }
+  .dropzone:hover, .dropzone.drag-over { border-color:var(--accent); background:rgba(79,110,246,.04); }
+  .dropzone .icon { font-size:3em; margin-bottom:12px; opacity:.6; }
+  .dropzone .hint { font-size:.95em; color:var(--muted); text-align:center; line-height:1.6; }
+  .dropzone .hint strong { color:var(--accent); }
+
+  /* ── File table ── */
+  .file-table { width:100%; border-collapse:collapse; font-size:.85em; }
+  .file-table th { text-align:left; padding:10px 14px; color:var(--dim); font-weight:500; font-size:.78em; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); }
+  .file-table td { padding:10px 14px; border-bottom:1px solid var(--border); }
+  .file-table tr { transition:background .1s; }
+  .file-table tr:hover td { background:var(--hover); }
+  .file-table .name { font-weight:500; display:flex; align-items:center; gap:8px; }
+  .file-table .name .ext { font-size:.75em; color:var(--muted); background:var(--bg); padding:2px 7px; border-radius:5px; }
+  .file-table .size { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .file-table .ratio { font-weight:600; }
+  .ratio-good { color:var(--green); }
+  .ratio-ok { color:var(--yellow); }
+  .ratio-bad { color:var(--muted); }
+
+  /* ── Progress ── */
+  .progress-card {
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px; display:none; transition: background .3s;
+  }
+  .progress-card.show { display:block; animation:slideUp .3s ease-out; }
+  @keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .progress-bar-wrap { height:6px; background:var(--bg); border-radius:3px; margin:10px 0; overflow:hidden; }
+  .progress-bar-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:3px; transition:width .3s; width:67%; }
+  .progress-meta { display:flex; justify-content:space-between; font-size:.8em; color:var(--muted); }
+
+  /* ── Cards ── */
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media (max-width:800px) { .cards { grid-template-columns: 1fr; } }
+  .info-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px; transition: background .3s; }
+  .info-card .label { font-size:.75em; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .info-card .value { font-size:1.4em; font-weight:700; }
+  .info-card.guard { border-color:rgba(30,157,91,.2); }
+  .info-card.guard .value { color:var(--green); font-size:1.1em; }
+
+  /* ── Toast ── */
+  .toast {
+    position:fixed; bottom:24px; right:24px; background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:14px 20px; box-shadow:var(--shadow);
+    display:flex; align-items:center; gap:10px; font-size:.88em; z-index:100;
+    animation:slideUp .3s ease-out; transition: background .3s;
+  }
+  .toast.success { border-color:rgba(30,157,91,.3); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200;
+    display:flex; align-items:center; justify-content:center;
+    animation:fadeIn .2s ease-out;
+  }
+  .modal {
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:24px; width:90%; box-shadow:var(--shadow); animation:scaleIn .2s ease-out;
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes scaleIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo">hcompress <span>v2</span></div>
+  <a class="nav-item active">📦 压缩</a>
+  <a class="nav-item">📂 解压</a>
+  <a class="nav-item">📁 归档浏览器</a>
+  <a class="nav-item">⚙️ 设置</a>
+  <a class="nav-item">🔌 插件 <span class="badge">3</span></a>
+  <div class="spacer"></div>
+  <a class="nav-item" style="color:var(--dim);cursor:default">🛡️ BombGuard 已启用</a>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="toolbar">
+    <div class="path">~/Desktop/</div>
+    <button class="btn btn-outline">📄 添加文件</button>
+    <button class="btn btn-outline">📁 添加文件夹</button>
+    <button class="btn btn-primary">⚡ 开始压缩</button>
+    <button class="btn btn-ghost" title="设置">⚙️</button>
+  </div>
+
+  <div class="content">
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📦</div>
+      <div class="hint">拖拽文件或文件夹到此处<br><span style="font-size:.8em;margin-top:4px;display:inline-block;color:var(--dim)">或点击 <strong>添加文件 / 文件夹</strong> 按钮</span></div>
+    </div>
+
+    <table class="file-table">
+      <thead><tr><th>文件</th><th style="width:90px">大小</th><th style="width:100px">预计压缩率</th><th style="width:50px"></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="name">📄 report.txt <span class="ext">.txt</span></span></td>
+          <td class="size">1.2 MB</td>
+          <td class="ratio ratio-good">~48%</td>
+          <td><button class="btn btn-ghost" style="padding:4px 8px;font-size:.8em">✕</button></td>
+        </tr>
+        <tr>
+          <td><span class="name">🖼 photo.png <span class="ext">.png</span></span></td>
+          <td class="size">3.8 MB</td>
+          <td class="ratio ratio-ok">~97%</td>
+          <td><button class="btn btn-ghost" style="padding:4px 8px;font-size:.8em">✕</button></td>
+        </tr>
+        <tr>
+          <td><span class="name">📁 project/ <span class="ext">folder</span></span></td>
+          <td class="size">15.4 MB</td>
+          <td class="ratio ratio-good">~52%</td>
+          <td><button class="btn btn-ghost" style="padding:4px 8px;font-size:.8em">✕</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="cards">
+      <div class="info-card"><div class="label">总原始大小</div><div class="value">20.4 MB</div></div>
+      <div class="info-card"><div class="label">预计压缩后</div><div class="value" style="color:var(--accent2)">11.8 MB</div></div>
+      <div class="info-card guard"><div class="label">🛡️ BombGuard</div><div class="value">✓ 已启用 · 阈值 100:1</div></div>
+    </div>
+
+    <div class="progress-card show" id="progress">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600">⚡ 压缩中…</span>
+        <span style="color:var(--muted);font-size:.85em">67%</span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
+      <div class="progress-meta"><span>13.7 MB / 20.4 MB</span><span>5.2 MB/s · 剩余 ~1.3s</span></div>
+    </div>
+  </div>
+</main>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <span style="font-weight:700;font-size:1.1em">⚙️ 设置</span>
+      <button class="btn btn-ghost" id="btn-close-settings" style="font-size:1.2em">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:.8em;color:var(--dim);margin-bottom:8px">主题外观</div>
+        <div class="theme-row" id="theme-switcher">
+          <button class="theme-btn" data-theme="light">☀️ 浅色</button>
+          <button class="theme-btn active" data-theme="system">💻 跟随系统</button>
+          <button class="theme-btn" data-theme="dark">🌙 深色</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:.8em;color:var(--dim);margin-bottom:6px">默认压缩级别</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="0" max="9" value="6" style="flex:1;accent-color:var(--accent)">
+          <span style="font-weight:600;width:20px;text-align:center">6</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:.88em">🛡️ BombGuard</span>
+        <span style="color:var(--green);font-weight:600">已启用</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:.88em">📦 默认输出目录</span>
+        <span style="color:var(--muted);font-size:.82em">~/Desktop</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast success" id="toast" style="display:none">
+  <span>✅</span> 压缩完成！&nbsp; 20.4 MB → 11.8 MB &nbsp;(节省 42%)
+</div>
+
+<script>
+  // ── Theme engine ──
+  const html = document.documentElement;
+
+  function setTheme(mode) {
+    html.setAttribute('data-theme', mode);
+    localStorage.setItem('hcompress-theme', mode);
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.theme === mode);
+    });
+  }
+
+  // Restore saved theme
+  const saved = localStorage.getItem('hcompress-theme') || 'system';
+  setTheme(saved);
+
+  document.getElementById('theme-switcher').addEventListener('click', e => {
+    const btn = e.target.closest('.theme-btn');
+    if (btn) setTheme(btn.dataset.theme);
+  });
+
+  // ── Drop zone ──
+  const dz = document.getElementById('dropzone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); showToast(); });
+  dz.addEventListener('click', () => showToast());
+
+  function showToast() {
+    const t = document.getElementById('toast');
+    t.style.display = 'flex'; t.style.animation = 'none';
+    t.offsetHeight; t.style.animation = 'slideUp .3s ease-out';
+    setTimeout(() => t.style.display = 'none', 3000);
+  }
+
+  // ── Settings modal ──
+  const modal = document.getElementById('settings-modal');
+  document.querySelector('.btn-ghost[title="设置"]').addEventListener('click', () => {
+    modal.style.display = 'flex';
+  });
+  document.getElementById('btn-close-settings').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') modal.style.display = 'none'; });
+
+  // ── Nav ──
+  document.querySelectorAll('.nav-item:not([style])').forEach(item => {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>

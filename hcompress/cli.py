@@ -155,7 +155,7 @@ def decompress_cmd(
     input_path: str, output: str | None, force: bool, no_checksum: bool,
     no_bomb_guard: bool, plugin_dir: tuple[str, ...],
 ) -> None:
-    """Decompress an HCF archive."""
+    """Decompress an HCF archive (or other supported format)."""
     # Guess output name
     if output:
         out = output
@@ -165,6 +165,22 @@ def decompress_cmd(
             out = str(p.with_suffix(""))
         else:
             out = str(p) + ".out"
+
+    # If not HCF, try format handlers (gzip, zip, tar, bz2, xz)
+    if not input_path.lower().endswith(".hcf"):
+        from hcompress.formats import detect, decompress as fmt_decompress, supported_formats
+        fmt = detect(input_path)
+        if fmt:
+            console.print(f"[cyan]检测到格式: {fmt}[/]")
+            if os.path.exists(out) and not force:
+                console.print(f"[red]✗[/] Output already exists. Use [bold]-f[/] to overwrite.")
+                raise SystemExit(1)
+            out_dir = output or os.path.dirname(input_path)
+            fmt_decompress(input_path, out_dir)
+            console.print(f"[green]✓[/] 解压完成 → [bold]{out_dir}[/]")
+            return
+        else:
+            console.print(f"[yellow]⚠[/] 未知格式，尝试按 HCF 处理...")
 
     if os.path.exists(out) and not force:
         console.print(f"[red]✗[/] Output file [bold]{out}[/] already exists. Use [bold]-f[/] to overwrite.")
