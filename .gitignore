@@ -1,0 +1,41 @@
+# Build artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# C extension build
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual env
+venv/
+.venv/
+env/
+.env
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+benchmark_results/
+
+# Temp
+*.tmp
+*.bench.*
+benchmarks/bench_corpus/test_*

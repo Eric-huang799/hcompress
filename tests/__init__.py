@@ -1,0 +1,1 @@
+# hcompress test suite

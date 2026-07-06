@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hcompress"
+version = "0.1.0"
+description = "High-performance compression tool based on Canonical Huffman coding"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [{name = "Eric", email = "eric@example.com"}]
+keywords = ["compression", "huffman", "canonical-huffman", "hcompress"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Archiving :: Compression",
+]
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "psutil>=5.9",
+]
+
+[project.scripts]
+hcompress = "hcompress.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/eric/hcompress"
+Repository = "https://github.com/eric/hcompress.git"
+
+[tool.setuptools.packages.find]
+include = ["hcompress*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = ["-v", "--tb=short"]
