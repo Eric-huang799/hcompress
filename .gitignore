@@ -39,3 +39,6 @@ benchmark_results/
 *.tmp
 *.bench.*
 benchmarks/bench_corpus/test_*
+
+# Security tools (local only)
+tools/make_bomb.py
