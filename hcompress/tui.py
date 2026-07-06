@@ -1,41 +1,25 @@
-"""hcompress TUI — Textual-powered terminal interface."""
+"""hcompress TUI — Textual-powered terminal interface with file browser."""
 
 from __future__ import annotations
 
 import os
-from pathlib import Path
+import threading
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import (
-    Button, Footer, Header, Input, Label, ListItem, ListView,
+    Button, DirectoryTree, Footer, Header, Label,
     ProgressBar, Static, Switch
 )
 
-from hcompress.engine import compress, decompress, CompressConfig, DecompressConfig, CompressStats, DecompressStats
+from hcompress.engine import compress, compress_parallel, CompressConfig, DecompressConfig
 from hcompress.plugins import PluginRegistry
 
 
-class StatCard(Static):
-    """A single stat display widget."""
-    def __init__(self, label: str, value: str = "", color: str = "white") -> None:
-        super().__init__()
-        self._label = label
-        self._value = value
-        self._color = color
-
-    def compose(self) -> ComposeResult:
-        yield Static(self._label, classes="stat-label")
-        yield Static(self._value, classes=f"stat-value {self._color}")
-
-    def update_value(self, value: str) -> None:
-        self.query(".stat-value").first().update(value)
-
-
 class HcompressTUI(App[None]):
-    """hcompress terminal UI."""
+    """hcompress terminal UI with file browser."""
 
     CSS = """
     Screen { background: #0d0d14; }
@@ -43,87 +27,68 @@ class HcompressTUI(App[None]):
     Footer { background: #16162a; }
 
     #sidebar {
-        width: 32; background: #111122; border-right: solid #2a2a4a;
-        padding: 0 1;
+        width: 38; background: #111122; border-right: solid #2a2a4a;
+        padding: 1;
     }
-    #sidebar Label { padding: 1 2; color: #888; text-style: bold; margin-top: 1; }
-    #sidebar ListView { height: 1fr; }
-    #sidebar ListItem {
-        padding: 1 2; color: #aaa;
-    }
-    #sidebar ListItem.--highlight { background: #6c8cff22; color: #6c8cff; }
+    #sidebar Label { padding: 1 2; color: #888; text-style: bold; }
+    DirectoryTree { height: 1fr; background: #111122; border: solid #2a2a4a; }
 
     #main { padding: 1 2; }
-    #path-bar { height: 3; background: #16162a; padding: 0 2; margin-bottom: 1; }
-    #path-bar Input { background: #0d0d14; border: solid #2a2a4a; }
-    #file-list { height: 1fr; margin-bottom: 1; }
-    #file-list ListItem { padding: 0 1; }
-    #stats { height: 5; layout: horizontal; }
-    #stats StatCard { width: 1fr; margin: 0 1; background: #16162a; padding: 1; }
+    #info { height: 5; background: #16162a; padding: 1 2; margin-bottom: 1; }
+    #info Label { padding: 0 1; }
+    #info .path { color: #6c8cff; text-style: bold; }
+    #info .size { color: #e5b83c; }
+    #info .ratio { color: #3ec97e; text-style: bold; }
     #progress { height: 3; margin-top: 1; background: #16162a; padding: 0 2; }
-    #progress ProgressBar { margin: 1 0; }
-
-    .stat-label { color: #666; text-style: bold; }
-    .stat-value { text-style: bold; }
-    .white { color: #eee; }
-    .green { color: #3ec97e; }
-    .blue { color: #6c8cff; }
-    .yellow { color: #e5b83c; }
-    .red { color: #e5535b; }
-
+    #actions { height: 4; margin-top: 1; }
+    #actions Horizontal { height: 1fr; }
     Button { margin: 0 1; }
-    Button.success { background: #3ec97e; color: #0d0d14; }
     Button.primary { background: #6c8cff; color: #fff; }
+    Button.success { background: #3ec97e; color: #0d0d14; }
+    Button.warning { background: #e5b83c; color: #0d0d14; }
     Button.danger { background: #e5535b; color: #fff; }
-
-    Horizontal Button { width: 1fr; }
     """
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "退出", show=True),
-        Binding("ctrl+o", "pick_file", "选择文件", show=True),
         Binding("ctrl+c", "compress", "压缩", show=True),
         Binding("ctrl+d", "decompress", "解压", show=True),
-        Binding("ctrl+k", "open_dir", "打开文件夹", show=True),
+        Binding("ctrl+p", "parallel", "并行压缩", show=True),
+        Binding("ctrl+o", "open_folder", "打开目录", show=True),
     ]
 
-    files: reactive[list[str]] = reactive([])
+    selected_path: reactive[str] = reactive("")
     mode: str = "compress"
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Horizontal(
             Vertical(
-                Label("📦 模式"),
-                ListView(
-                    ListItem(Static("  ⚡ 压缩")),
-                    ListItem(Static("  📂 解压")),
-                    id="mode-list",
-                ),
-                Label("📁 文件"),
-                ListView(id="file-list"),
+                Label("📁 文件浏览器"),
+                DirectoryTree(os.path.expanduser("~"), id="tree"),
                 Label("🛡️ BombGuard"),
                 Switch(value=True, id="bomb-guard"),
                 id="sidebar",
             ),
             Vertical(
-                Horizontal(
-                    Input(placeholder="📂 文件路径...", id="path-input"),
-                    Button("选择文件", variant="default", id="btn-pick"),
-                    id="path-bar",
-                ),
-                ListView(id="file-list"),
-                Horizontal(
-                    StatCard("原始大小", "—", "white"),
-                    StatCard("压缩后", "—", "blue"),
-                    StatCard("压缩率", "—", "green"),
-                    id="stats",
-                ),
-                Horizontal(
-                    Button("⚡ 开始压缩", variant="success", id="btn-go"),
-                    id="btn-row",
+                Vertical(
+                    Label("", id="info-path", classes="path"),
+                    Label("", id="info-size", classes="size"),
+                    Label("", id="info-ratio", classes="ratio"),
+                    id="info",
                 ),
                 ProgressBar(total=100, show_eta=False, id="progress"),
+                Vertical(
+                    Horizontal(
+                        Button("⚡ 压缩 (ctrl+c)", variant="success", id="btn-compress"),
+                        Button("📂 解压 (ctrl+d)", variant="warning", id="btn-decompress"),
+                    ),
+                    Horizontal(
+                        Button("🚀 并行压缩 (ctrl+p)", variant="primary", id="btn-parallel"),
+                        Button("📁 打开目录 (ctrl+o)", id="btn-open"),
+                    ),
+                    id="actions",
+                ),
                 id="main",
             ),
         )
@@ -132,86 +97,76 @@ class HcompressTUI(App[None]):
     def on_mount(self) -> None:
         self.query_one("#progress", ProgressBar).display = False
 
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        if event.list_view.id == "mode-list":
-            self.mode = "decompress" if self.mode == "compress" else "compress"
-            btn = self.query_one("#btn-go", Button)
-            btn.label = "⚡ 开始压缩" if self.mode == "compress" else "📂 开始解压"
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        self.selected_path = str(event.path)
+        st = os.stat(self.selected_path)
+        info_path = self.query_one("#info-path", Label)
+        info_path.update(f"📄 {self.selected_path}")
+        info_size = self.query_one("#info-size", Label)
+        info_size.update(f"大小: {self._fsize(st.st_size)}")
+        self.query_one("#info-ratio", Label).update("")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-pick":
-            self.app.action_pick_file()
-        elif event.button.id == "btn-go":
-            if self.mode == "compress":
-                self.app.action_compress()
-            else:
-                self.app.action_decompress()
+        btn = event.button.id
+        if btn == "btn-compress": self.action_compress()
+        elif btn == "btn-decompress": self.action_decompress()
+        elif btn == "btn-parallel": self.action_parallel()
+        elif btn == "btn-open": self.action_open_folder()
 
-    def action_pick_file(self) -> None:
-        path_input = self.query_one("#path-input", Input)
-        path = os.path.expanduser(path_input.value.strip())
-        if path and os.path.isfile(path):
-            self._add_file(path)
-        elif path:
-            self.notify("文件不存在: " + path, title="❌", severity="error")
+    def action_compress(self) -> None: self._run(False, False)
+    def action_decompress(self) -> None: self._run(True, False)
+    def action_parallel(self) -> None: self._run(False, True)
 
-    def _add_file(self, path: str) -> None:
-        name = os.path.basename(path)
-        size = os.path.getsize(path)
-        self.query_one("#file-list", ListView).append(
-            ListItem(Static(f"  {name}  ({self._fsize(size)})"))
-        )
-        self.query_one("#stats").query_one(StatCard).update_value(self._fsize(size))
-        self.query_one("#stats").query(StatCard)[1].update_value("计算中...")
+    def action_open_folder(self) -> None:
+        d = os.path.dirname(self.selected_path) if self.selected_path else os.path.expanduser("~")
+        try: os.startfile(d)
+        except Exception: self.notify(f"目录: {d}", title="📁")
 
-    def action_compress(self) -> None:
-        path = self.query_one("#path-input", Input).value.strip()
-        if not path or not os.path.isfile(path): return
-        self._run_op(path, decompress=False)
+    def _run(self, decompress: bool, parallel: bool) -> None:
+        path = self.selected_path
+        if not path or not os.path.isfile(path):
+            self.notify("请先在左侧文件浏览器中选择文件", title="❌", severity="error")
+            return
 
-    def action_decompress(self) -> None:
-        path = self.query_one("#path-input", Input).value.strip()
-        if not path or not os.path.isfile(path): return
-        reg = PluginRegistry(); reg.discover_builtin()
-        self._run_op(path, decompress=True, registry=reg)
-
-    def _run_op(self, path: str, decompress: bool = False, registry=None) -> None:
         prog = self.query_one("#progress", ProgressBar)
         prog.display = True; prog.update(progress=0)
 
-        import threading
         def worker():
             try:
-                out = path + ("" if decompress else ".hcf")
+                d = os.path.dirname(path)
+                name = os.path.basename(path)
                 if decompress:
-                    cfg = DecompressConfig(registry=registry) if registry else DecompressConfig()
-                    stats = decompress(path, out, cfg)
-                    self.app.call_from_thread(lambda: self._show_result(
-                        stats.original_size, 0, 0, "解压完成"))
+                    out = os.path.join(d, name.replace(".hcf", ""))
+                    reg = PluginRegistry()
+                    guard = self.query_one("#bomb-guard", Switch).value
+                    if guard: reg.discover_builtin()
+                    stats = decompress(path, out, DecompressConfig(registry=reg))
+                    self.app.call_from_thread(lambda: self._done(stats.original_size, 0, name))
+                elif parallel:
+                    out = os.path.join(d, name + ".hcf")
+                    r = compress_parallel(path, out, level=6, workers=4)
+                    self.app.call_from_thread(lambda: self._done(r["original_size"], r["compressed_size"], name))
                 else:
-                    cfg = CompressConfig(level=6)
-                    stats = compress(path, out, cfg)
-                    ratio = stats.ratio * 100
-                    self.app.call_from_thread(lambda: self._show_result(
-                        stats.original_size, stats.compressed_size, ratio, "压缩完成"))
-                self.app.call_from_thread(lambda: self.query_one("#progress", ProgressBar).update(progress=100))
+                    out = os.path.join(d, name + ".hcf")
+                    stats = compress(path, out, CompressConfig(level=6))
+                    self.app.call_from_thread(lambda: self._done(stats.original_size, stats.compressed_size, name))
             except Exception as e:
-                self.app.call_from_thread(lambda: self._show_error(str(e)))
+                self.app.call_from_thread(lambda: self.notify(str(e), title="❌ 错误", severity="error"))
             finally:
-                self.app.call_from_thread(lambda: prog.display if not prog.display else None)
+                self.app.call_from_thread(lambda: setattr(prog, 'display', False))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _show_result(self, orig: int, comp: int, ratio: float, label: str) -> None:
-        cards = self.query_one("#stats").query(StatCard)
-        cards[0].update_value(self._fsize(orig))
-        cards[1].update_value(self._fsize(comp))
-        cards[2].update_value(f"{ratio:.1f}%" if ratio > 0 else "—")
-        self.bell()
-        self.notify(f"{label}！{self._fsize(orig)} → {self._fsize(comp)}", title="✅")
-
-    def _show_error(self, msg: str) -> None:
-        self.notify(msg, title="❌ 错误", severity="error")
+    def _done(self, orig: int, comp: int, name: str) -> None:
+        info_ratio = self.query_one("#info-ratio", Label)
+        if comp > 0:
+            ratio = comp * 100 / orig
+            info_ratio.update(f"压缩率: {ratio:.1f}% (省 {(100-ratio):.1f}%)")
+        else:
+            info_ratio.update(f"解压完成: {self._fsize(orig)}")
+        prog = self.query_one("#progress", ProgressBar)
+        prog.update(progress=100)
+        self.notify(f"{name} → {self._fsize(orig)} → {self._fsize(comp)}", title="✅ 完成")
 
     @staticmethod
     def _fsize(n: int) -> str:
