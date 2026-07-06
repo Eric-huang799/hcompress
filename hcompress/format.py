@@ -42,6 +42,7 @@ FLAG_LEVEL_SHIFT = 1
 FLAG_LEVEL_MASK = 0xF           # 4 bits
 FLAG_CODER_SHIFT = 5
 FLAG_CODER_MASK = 0x7           # 3 bits
+FLAG_DIRECTORY = 1 << 8         # bit 8: archive contains a directory tree
 
 # Entropy coder IDs
 CODER_CANONICAL_HUFFMAN = 0

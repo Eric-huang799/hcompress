@@ -185,10 +185,23 @@ class HcompressGUI:
                 filetypes=[("HCF 文件", "*.hcf"), ("所有文件", "*.*")],
             )
         else:
-            path = filedialog.askopenfilename(
-                title="选择要压缩的文件",
-                initialdir=desktop,
+            # Ask file or folder
+            from tkinter import messagebox as _mb
+            choice = _mb.askyesnocancel(
+                "选择输入", "要压缩文件还是文件夹？\n\n「是」= 选文件\n「否」= 选文件夹\n「取消」= 返回",
             )
+            if choice is None:
+                return
+            elif choice:
+                path = filedialog.askopenfilename(
+                    title="选择要压缩的文件",
+                    initialdir=desktop,
+                )
+            else:
+                path = filedialog.askdirectory(
+                    title="选择要压缩的文件夹",
+                    initialdir=desktop,
+                )
         if path:
             self._set_input(path)
 
@@ -225,7 +238,10 @@ class HcompressGUI:
         # Auto-suggest output — keep original extension, append .hcf
         p = Path(path)
         if self.mode_var.get() == "compress":
-            out = str(p) + ".hcf"     # foo.jpg → foo.jpg.hcf (保留原后缀)
+            if os.path.isdir(path):
+                out = str(p) + ".hcf"   # myfolder → myfolder.hcf (还原时自动解为文件夹)
+            else:
+                out = str(p) + ".hcf"   # foo.jpg → foo.jpg.hcf (保留原后缀)
         else:
             if p.suffix.lower() == ".hcf":
                 out = str(p.with_suffix(""))     # foo.jpg.hcf → foo.jpg

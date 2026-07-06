@@ -32,6 +32,7 @@ from hcompress.format import (
     unpack_extension_json,
 )
 from hcompress.interfaces.hook import CompressContext, DecompressContext
+from hcompress.archiver import pack_dir, unpack_dir, FLAG_DIRECTORY
 
 if TYPE_CHECKING:
     from hcompress.interfaces.codec import IEntropyCodec
@@ -185,9 +186,13 @@ def compress(
     stats = CompressStats(input_path=input_path, output_path=output_path)
     t0 = time.perf_counter()
 
-    # --- read input ---
-    with open(input_path, "rb") as f:
-        data = f.read()
+    # --- read input (handle directories) ---
+    is_directory = os.path.isdir(input_path)
+    if is_directory:
+        data = pack_dir(input_path)
+    else:
+        with open(input_path, "rb") as f:
+            data = f.read()
 
     original_size = len(data)
     stats.original_size = original_size
@@ -269,6 +274,8 @@ def compress(
     flags = 0
     flags |= ((config.level & 0xF) << 1)            # bits 1-4
     # coder_id = 0 (CanonicalHuffman) in bits 5-7, already 0
+    if is_directory:
+        flags |= FLAG_DIRECTORY
     if config.extensions:
         flags |= FLAG_HAS_EXTENSION
 
@@ -416,9 +423,13 @@ def decompress(
     #  unless a checksummer is explicitly configured)
     stats.checksum_ok = True  # v1: checksum stored in stats during compress
 
-    # --- write output ---
-    with open(output_path, "wb") as f:
-        f.write(data)
+    # --- write output (handle directory archives) ---
+    if header.flags & FLAG_DIRECTORY:
+        unpack_dir(data, output_path)
+        stats.original_size = header.original_size
+    else:
+        with open(output_path, "wb") as f:
+            f.write(data)
 
     # --- extension: done ---
     for ext in config.extensions:
