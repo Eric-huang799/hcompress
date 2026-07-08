@@ -22,6 +22,15 @@ if getattr(sys, "frozen", False):
 
 
 def main() -> None:
+    # Auto-load external plugins from plugins/ directory
+    try:
+        from hcompress.plugins import PluginRegistry
+        _reg = PluginRegistry()
+        _reg.discover_external()
+        _reg.discover_builtin()
+    except Exception:
+        pass
+
     if len(sys.argv) > 1:
         # CLI mode
         from hcompress.cli import main as cli_main

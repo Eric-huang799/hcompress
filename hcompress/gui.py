@@ -301,6 +301,7 @@ class HcompressGUI:
                 from hcompress.plugins import PluginRegistry
                 reg = PluginRegistry()
                 reg.discover_builtin()
+                reg.discover_external()
                 cfg = DecompressConfig(registry=reg)
                 r = decompress(self.input_file, self.output_file, cfg)
                 import os as _os

@@ -128,46 +128,60 @@ def _default_checksum() -> IChecksum:
 
 
 def _merge_registry(config: CompressConfig | DecompressConfig) -> None:
-    """Merge plugins from a PluginRegistry into *config* if one is set."""
+    """Merge plugins from a PluginRegistry into *config* if one is set.
+
+    Uses ``get_enabled_*()`` so that disabled plugins are automatically
+    skipped.  Explicitly-provided plugins take precedence over registry ones.
+
+    Also checks the ``HCOMPRESS_DISABLED_PLUGINS`` environment variable
+    (comma-separated plugin names) — used by v2 Electron to session-disable
+    plugins from the Plugin Manager UI.
+    """
     reg = getattr(config, "registry", None)
     if reg is None:
         return
+
+    # Apply v2 Electron session-level disable list
+    disabled_env = os.environ.get("HCOMPRESS_DISABLED_PLUGINS", "")
+    if disabled_env:
+        for name in disabled_env.split(","):
+            name = name.strip()
+            if name:
+                reg.disable(name)
     # CompressConfig
     if hasattr(config, "entropy_coder"):
         if not config.entropy_coder:
-            codecs = reg.get_codecs()
+            codecs = reg.get_enabled_codecs()
             if codecs:
                 config.entropy_coder = codecs[0]
         if not config.checksum:
-            cs = reg.get_checksums()
+            cs = reg.get_enabled_checksums()
             if cs:
                 config.checksum = cs[0]
-        config.transforms = list(config.transforms) + reg.get_transforms()
-        config.filters = list(config.filters) + reg.get_filters()
         if not config.block_splitter:
-            bs = reg.get_block_splitters()
+            bs = reg.get_enabled_block_splitters()
             if bs:
                 config.block_splitter = bs[0]
         if not config.io_backend:
-            io = reg.get_io_backends()
+            io = reg.get_enabled_io_backends()
             if io:
                 config.io_backend = io[0]
-        config.hooks = list(config.hooks) + reg.get_compress_hooks()
-        config.observers = list(config.observers) + reg.get_observers()
-        config.extensions = list(config.extensions) + reg.get_extensions()
+        config.hooks = list(config.hooks) + reg.get_enabled_compress_hooks()
+        config.observers = list(config.observers) + reg.get_enabled_observers()
+        config.extensions = list(config.extensions) + reg.get_enabled_extensions()
     # DecompressConfig
     else:
         if not config.checksum:
-            cs = reg.get_checksums()
+            cs = reg.get_enabled_checksums()
             if cs:
                 config.checksum = cs[0]
         if not config.io_backend:
-            io = reg.get_io_backends()
+            io = reg.get_enabled_io_backends()
             if io:
                 config.io_backend = io[0]
-        config.hooks = list(config.hooks) + reg.get_decompress_hooks()
-        config.observers = list(config.observers) + reg.get_observers()
-        config.extensions = list(config.extensions) + reg.get_extensions()
+        config.hooks = list(config.hooks) + reg.get_enabled_decompress_hooks()
+        config.observers = list(config.observers) + reg.get_enabled_observers()
+        config.extensions = list(config.extensions) + reg.get_enabled_extensions()
 
 
 # ── compress ─────────────────────────────────────────────────────────────────
@@ -182,6 +196,17 @@ def compress(
     if config is None:
         config = CompressConfig()
     _merge_registry(config)
+
+    # --- apply v2 Electron transform selection ---
+    _active_transforms = os.environ.get("HCOMPRESS_TRANSFORMS", "")
+    if _active_transforms:
+        for _name in _active_transforms.split(","):
+            _name = _name.strip()
+            if _name and config.registry:
+                for _t in config.registry.get_transforms():
+                    if type(_t).__name__ == _name and _t not in config.transforms:
+                        config.transforms.append(_t)
+                        break
 
     stats = CompressStats(input_path=input_path, output_path=output_path)
     t0 = time.perf_counter()
@@ -214,8 +239,10 @@ def compress(
     # --- check for parallel plugin ---
     use_parallel = False
     parallel_workers = 4
+    parallel_hook = None
     for hook in config.hooks:
-        if type(hook).__name__ == "ParallelCompressPlugin":
+        if getattr(hook, "supports_parallel", False):
+            parallel_hook = hook
             hook.on_start(ctx)
             if getattr(ctx, "_parallel_enabled", False):
                 use_parallel = True
@@ -228,9 +255,8 @@ def compress(
         stats.compressed_size = r["compressed_size"]
         stats.ratio = r["ratio"]
         stats.elapsed_ms = r["elapsed_ms"]
-        for hook in config.hooks:
-            if type(hook).__name__ == "ParallelCompressPlugin":
-                hook.on_done(ctx, stats)
+        if parallel_hook is not None:
+            parallel_hook.on_done(ctx, stats)
         return stats
 
     # --- checksum ---
@@ -260,6 +286,13 @@ def compress(
     # --- filters (apply) ---
     for flt in config.filters:
         data = flt.apply(data)
+
+    # Update sizes: header.original_size must be post-transform length
+    # so the Huffman decoder knows how many symbols to decode.
+    # The true pre-transform size is stored in extension JSON.
+    _pre_transform_size = original_size
+    original_size = len(data)
+    stats.original_size = original_size
 
     # --- frequency + canonical codes ---
     freq = freq_table(data)
@@ -298,17 +331,29 @@ def compress(
             ext.on_compress_data, ctx, encoded, "pre_write", fallback=encoded,
         )
 
+    # --- build extension JSON (with optional transform chain) ---
+    ext_json = pack_extension_json(config.extensions)
+    if config.transforms:
+        import json as _json
+        _transform_names = [type(t).__name__ for t in config.transforms]
+        _ext_dict = (
+            _json.loads(ext_json.decode("utf-8"))
+            if ext_json else {}
+        )
+        _ext_dict["_hcompress_transforms"] = _transform_names
+        _ext_dict["_hcompress_original_size"] = _pre_transform_size
+        ext_json = _json.dumps(_ext_dict, ensure_ascii=False).encode("utf-8")
+
     # --- build flags ---
     flags = 0
     flags |= ((config.level & 0xF) << 1)            # bits 1-4
     # coder_id = 0 (CanonicalHuffman) in bits 5-7, already 0
     if is_directory:
         flags |= FLAG_DIRECTORY
-    if config.extensions:
+    if ext_json:
         flags |= FLAG_HAS_EXTENSION
 
     # --- write header + bitstream ---
-    ext_json = pack_extension_json(config.extensions)
     with open(output_path, "wb") as f:
         header_bytes = write_header(
             f, bit_lengths, original_size,
@@ -367,6 +412,27 @@ def decompress(
 
     # --- extension: restore data from header ---
     unpack_extension_json(header.extension_data, config.extensions)
+
+    # --- auto-load transform chain from HCF header ---
+    if header.extension_data and config.registry:
+        import json as _json
+        try:
+            _ext_dict = _json.loads(header.extension_data.decode("utf-8"))
+            _chain = _ext_dict.get("_hcompress_transforms", [])
+            for _name in _chain:
+                for _t in config.registry.get_transforms():
+                    if type(_t).__name__ == _name and _t not in config.transforms:
+                        config.transforms.append(_t)
+                        break
+                else:
+                    import sys
+                    print(
+                        f"Warning: HCF requires transform '{_name}' but it is not loaded. "
+                        f"Output may be corrupted.",
+                        file=sys.stderr,
+                    )
+        except (_json.JSONDecodeError, UnicodeDecodeError):
+            pass
 
     # --- extension: start ---
     for ext in config.extensions:
@@ -466,6 +532,16 @@ def decompress(
 
     # --- hook: done ---
     stats.original_size = header.original_size
+    # Restore true pre-transform original size from HCF extension
+    if header.extension_data:
+        import json as _json
+        try:
+            _ext = _json.loads(header.extension_data.decode("utf-8"))
+            _true_size = _ext.get("_hcompress_original_size")
+            if _true_size is not None:
+                stats.original_size = _true_size
+        except (_json.JSONDecodeError, UnicodeDecodeError):
+            pass
     stats.elapsed_ms = (time.perf_counter() - t0) * 1000
 
     for hook in config.hooks:
@@ -477,38 +553,56 @@ def decompress(
 
 
 def _safe_call(label: str, fn, *args) -> None:
-    """Call *fn* and catch exceptions so one misbehaving hook can't kill the pipeline."""
+    """Call *fn* and catch exceptions so one misbehaving hook can't kill the pipeline.
+
+    Set env ``HCOMPRESS_DEBUG_PLUGINS=1`` to print full tracebacks instead of
+    swallowing errors silently.
+    """
+    debug_plugins = os.environ.get("HCOMPRESS_DEBUG_PLUGINS", "") == "1"
     try:
         fn(*args)
     except Exception as exc:
-        # Let bomb-guard / abort exceptions propagate
         if isinstance(exc, (RuntimeError, ValueError)):
             raise
-        import sys
-        print(f"[{label}] ignored error: {exc}", file=sys.stderr)
+        if debug_plugins:
+            import traceback
+            traceback.print_exc()
+        else:
+            import sys
+            print(f"[{label}] ignored error: {exc}", file=sys.stderr)
 
 
 def _safe_call_data(label: str, fn, ctx, data: bytes, stage: str, *, fallback: bytes) -> bytes:
     """Like _safe_call but for hooks that return (possibly modified) data."""
+    debug_plugins = os.environ.get("HCOMPRESS_DEBUG_PLUGINS", "") == "1"
     try:
         result = fn(ctx, data, stage)
         return result if isinstance(result, bytes) else fallback
     except Exception as exc:
         if isinstance(exc, (RuntimeError, ValueError)):
             raise
-        import sys
-        print(f"[{label}] ignored error: {exc}", file=sys.stderr)
+        if debug_plugins:
+            import traceback
+            traceback.print_exc()
+        else:
+            import sys
+            print(f"[{label}] ignored error: {exc}", file=sys.stderr)
         return fallback
 
 
 def _safe_call_bool(label: str, fn, *args) -> bool:
     """Like _safe_call but expects a bool return (defaulting to True on error)."""
+    debug_plugins = os.environ.get("HCOMPRESS_DEBUG_PLUGINS", "") == "1"
     try:
         result = fn(*args)
         return bool(result)
     except Exception as exc:
         if isinstance(exc, (RuntimeError, ValueError)):
             raise
-        import sys
-        print(f"[{label}] ignored error: {exc}", file=sys.stderr)
+        if debug_plugins:
+            import traceback
+            traceback.print_exc()
+        else:
+            import sys
+            print(f"[{label}] ignored error: {exc}", file=sys.stderr)
         return True

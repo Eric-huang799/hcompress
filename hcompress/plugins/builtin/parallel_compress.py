@@ -5,13 +5,29 @@
 
 基于 ProcessPoolExecutor，绕过 Python GIL。
 """
+from typing import ClassVar
+
 from hcompress.plugins.sdk import BaseCompressHook
+from hcompress.plugins.manifest import PluginMeta
 
 PARALLEL_THRESHOLD = 256 * 1024  # 256 KB
 WORKERS = 4
 
+
 class ParallelCompressPlugin(BaseCompressHook):
     """大文件自动切换多进程并行压缩。"""
+
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="ParallelCompressPlugin",
+        version="1.0.0",
+        author="hcompress team",
+        description="大文件(>256KB)自动启用 ProcessPoolExecutor 多进程并行",
+        plugin_type="compress_hook",
+        priority=90,
+    )
+
+    supports_parallel: bool = True
+
     def on_start(self, ctx):
         import os
         if ctx.original_size > PARALLEL_THRESHOLD:

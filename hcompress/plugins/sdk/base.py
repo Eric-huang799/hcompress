@@ -3,11 +3,14 @@ No-op base classes for every hcompress interface.
 
 Subclass these instead of the raw ABCs — override only the methods
 you care about.  All unimplemented methods default to pass-through.
+
+Each base class carries a ``meta`` attribute (:class:`PluginMeta`) that
+the plugin registry reads for discovery, display, and enable/disable.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from hcompress.interfaces.codec import IEntropyCodec
 from hcompress.interfaces.transform import ITransform
@@ -19,6 +22,7 @@ from hcompress.interfaces.block_splitter import IBlockSplitter
 from hcompress.interfaces.hook import ICompressHook, IDecompressHook
 from hcompress.interfaces.observer import IObserver
 from hcompress.interfaces.extension import IExtension
+from hcompress.plugins.manifest import PluginMeta
 
 if TYPE_CHECKING:
     from hcompress.interfaces.hook import CompressContext, DecompressContext
@@ -29,6 +33,9 @@ if TYPE_CHECKING:
 
 class BaseCodec(IEntropyCodec):
     codec_id: int = 0
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-codec", plugin_type="codec",
+    )
 
     def encode(self, data: bytes, freq: list[int]) -> tuple[bytes, list[int]]:
         raise NotImplementedError("encode must be implemented")
@@ -41,18 +48,24 @@ class BaseCodec(IEntropyCodec):
 
 class BaseTransform(ITransform):
     name: str = "unnamed"
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-transform", plugin_type="transform",
+    )
 
     def forward(self, data: bytes) -> bytes:
-        return data  # pass-through
+        return data
 
     def reverse(self, data: bytes) -> bytes:
-        return data  # pass-through
+        return data
 
 
 # ── Filter ──────────────────────────────────────────────────────────────────
 
 class BaseFilter(IFilter):
     filter_id: int = 0
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-filter", plugin_type="filter",
+    )
 
     def apply(self, data: bytes) -> bytes:
         return data
@@ -64,6 +77,10 @@ class BaseFilter(IFilter):
 # ── MatchFinder ─────────────────────────────────────────────────────────────
 
 class BaseMatchFinder(IMatchFinder):
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-matchfinder", plugin_type="matchfinder",
+    )
+
     @property
     def window_size(self) -> int:
         return 32768
@@ -77,6 +94,9 @@ class BaseMatchFinder(IMatchFinder):
 class BaseChecksum(IChecksum):
     checksum_id: int = 255
     digest_size: int = 0
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-checksum", plugin_type="checksum",
+    )
 
     def compute(self, data: bytes) -> bytes:
         raise NotImplementedError("compute must be implemented")
@@ -88,6 +108,10 @@ class BaseChecksum(IChecksum):
 # ── IO Backend ──────────────────────────────────────────────────────────────
 
 class BaseIOBackend(IIOBackend):
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-io", plugin_type="io",
+    )
+
     def open_read(self, path: str):
         return open(path, "rb")
 
@@ -111,6 +135,10 @@ class BaseIOBackend(IIOBackend):
 # ── Block Splitter ──────────────────────────────────────────────────────────
 
 class BaseBlockSplitter(IBlockSplitter):
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-splitter", plugin_type="block_splitter",
+    )
+
     def split(self, data: bytes) -> list:
         from hcompress.interfaces.block_splitter import Block
         return [Block(offset=0, data=data, index=0)]
@@ -123,6 +151,10 @@ class BaseBlockSplitter(IBlockSplitter):
 # ── Compress Hook (no-op defaults) ──────────────────────────────────────────
 
 class BaseCompressHook(ICompressHook):
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-compress-hook", plugin_type="compress_hook",
+    )
+
     def on_start(self, ctx: CompressContext) -> None: pass
     def on_freq_done(self, ctx: CompressContext, freq: list[int]) -> None: pass
     def on_header_written(self, ctx: CompressContext, header: HeaderInfo) -> None: pass
@@ -135,6 +167,10 @@ class BaseCompressHook(ICompressHook):
 # ── Decompress Hook (no-op defaults) ────────────────────────────────────────
 
 class BaseDecompressHook(IDecompressHook):
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-decompress-hook", plugin_type="decompress_hook",
+    )
+
     def on_start(self, ctx: DecompressContext) -> None: pass
     def on_header_read(self, ctx: DecompressContext, header: HeaderInfo) -> bool:
         return True
@@ -147,6 +183,10 @@ class BaseDecompressHook(IDecompressHook):
 # ── Observer (no-op defaults) ───────────────────────────────────────────────
 
 class BaseObserver(IObserver):
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-observer", plugin_type="observer",
+    )
+
     def on_progress(self, current: int, total: int, phase: str) -> None: pass
     def on_event(self, event) -> None: pass
 
@@ -156,6 +196,9 @@ class BaseObserver(IObserver):
 class BaseExtension(IExtension):
     extension_id: str = "com.example.unnamed"
     version: str = "0.1.0"
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="unnamed-extension", plugin_type="extension",
+    )
 
     def on_compress_start(self, ctx: CompressContext) -> None: pass
     def on_compress_data(self, ctx: CompressContext, data: bytes, stage: str) -> bytes:

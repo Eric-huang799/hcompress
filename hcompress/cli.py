@@ -136,6 +136,7 @@ def compress_cmd(
     registry = PluginRegistry()
     registry.discover(list(plugin_dir))
     registry.discover_builtin()
+    registry.discover_external()
 
     config = CompressConfig(level=level, registry=registry)
 
@@ -199,6 +200,7 @@ def decompress_cmd(
     registry.discover(list(plugin_dir))
     if not no_bomb_guard:
         registry.discover_builtin()
+    registry.discover_external()
 
     config = DecompressConfig(registry=registry)
 
@@ -265,7 +267,11 @@ def plugin_group() -> None:
 @plugin_group.command(name="new")
 @click.argument("name")
 @click.option("--type", "plugin_type", default="decompress-hook",
-              type=click.Choice(["decompress-hook","compress-hook","extension","checksum","transform"]),
+              type=click.Choice([
+                  "decompress-hook", "compress-hook", "extension",
+                  "checksum", "transform", "codec", "filter",
+                  "matchfinder", "io-backend", "block-splitter", "observer",
+              ]),
               help="Plugin type")
 @click.option("-o", "--output-dir", default=".", help="Output directory")
 def plugin_new(name: str, plugin_type: str, output_dir: str) -> None:
@@ -284,11 +290,21 @@ def plugin_new(name: str, plugin_type: str, output_dir: str) -> None:
 
 
 @plugin_group.command(name="list")
-def plugin_list() -> None:
+@click.option("--json", "as_json", is_flag=True, hidden=True, help="Output as JSON (for IPC)")
+def plugin_list(as_json: bool = False) -> None:
     """List available plugin types and built-in plugins."""
-    from rich.table import Table
+    from hcompress.plugins import PluginRegistry
+    reg = PluginRegistry()
+    reg.discover_builtin()
+    reg.discover_external()
+    info = reg.get_all()
 
-    table = Table(title="Plugin Types", expand=False)
+    if as_json:
+        import json as _json
+        console.print(_json.dumps(info, ensure_ascii=False))
+        return
+
+    from rich.table import Table
     table.add_column("Type", style="cyan")
     table.add_column("Base Class", style="white")
     table.add_column("Use Case", style="dim")
@@ -298,19 +314,30 @@ def plugin_list() -> None:
     table.add_row("extension",       "BaseExtension",      "Encryption, signing, metadata, AI, ...")
     table.add_row("checksum",        "BaseChecksum",       "Custom hash / integrity check")
     table.add_row("transform",       "BaseTransform",      "BWT, MTF, RLE, delta encoding")
+    table.add_row("codec",           "BaseCodec",          "Custom entropy coder (ANS, Arithmetic, ...)")
+    table.add_row("filter",          "BaseFilter",         "Pre-processing (delta, PNG predictor, ...)")
+    table.add_row("matchfinder",     "BaseMatchFinder",    "LZ dictionary matching")
+    table.add_row("io-backend",      "BaseIOBackend",      "Custom I/O (S3, mmap, socket, ...)")
+    table.add_row("block-splitter",  "BaseBlockSplitter",  "Block partitioning strategy")
+    table.add_row("observer",        "BaseObserver",       "Progress / event / audit logging")
     console.print(table)
 
     # Show built-in
     from hcompress.plugins import PluginRegistry
     reg = PluginRegistry()
     reg.discover_builtin()
-    all_p = reg.get_all()
-    builtin_count = sum(len(v) for v in all_p.values())
-    if builtin_count:
-        console.print(f"\n[dim]Built-in plugins loaded: {builtin_count}[/]")
-        for cat, lst in all_p.items():
-            for p in lst:
-                console.print(f"  [green]●[/] {type(p).__name__}  ([dim]{cat}[/])")
+    reg.discover_external()
+    info = reg.get_all()
+    plugins = info["plugins"]
+    if plugins:
+        console.print(f"\n[dim]Built-in plugins loaded: {info['count']} (enabled: {info['count_enabled']})[/]")
+        for p in plugins:
+            status = "[green]●[/]" if p["enabled"] else "[red]○[/]"
+            console.print(
+                f"  {status} {p['name']}  [dim]v{p['version']}[/]  "
+                f"([dim]{p['plugin_type']}[/])  "
+                f"→ {p['description']}"
+            )
 
 
 @main.command(name="tui")

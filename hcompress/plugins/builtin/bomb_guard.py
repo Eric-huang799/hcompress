@@ -12,9 +12,10 @@ overhead — just compare the numbers.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from hcompress.interfaces.hook import IDecompressHook
+from hcompress.plugins.manifest import PluginMeta
 
 if TYPE_CHECKING:
     from hcompress.interfaces.hook import DecompressContext
@@ -46,6 +47,15 @@ class BombGuardPlugin(IDecompressHook):
     ``hcompress d file.hcf --no-bomb-guard``  (removes the hook).
     """
 
+    meta: ClassVar[PluginMeta] = PluginMeta(
+        name="BombGuardPlugin",
+        version="1.0.0",
+        author="hcompress team",
+        description="压缩炸弹/嵌套炸弹检测，默认 100:1 膨胀比阈值",
+        plugin_type="decompress_hook",
+        priority=10,
+    )
+
     # Per-process recursion counter (class-level — crude but effective)
     _depth: int = 0
 
@@ -65,7 +75,6 @@ class BombGuardPlugin(IDecompressHook):
             )
 
     def on_header_read(self, ctx: DecompressContext, header: HeaderInfo) -> bool:
-        # Compute expansion ratio
         import os
         compressed_size = os.path.getsize(ctx.input_path) if ctx.input_path else 1
         if compressed_size <= 0:
@@ -80,12 +89,12 @@ class BombGuardPlugin(IDecompressHook):
                 f"  膨胀比:   {ratio:.0f}:1  (阈值 {self.max_ratio}:1)\n"
                 f"  请检查文件来源或使用 --no-bomb-guard 强制解压。"
             )
-        return True  # allow decompression to continue
+        return True
 
     def on_block_decoded(
         self, ctx: DecompressContext, block_idx: int, encoded: bytes, raw: bytes
     ) -> None:
-        pass  # nothing to check per-block
+        pass
 
     def on_done(self, ctx: DecompressContext, stats) -> None:
         BombGuardPlugin._depth = max(0, BombGuardPlugin._depth - 1)

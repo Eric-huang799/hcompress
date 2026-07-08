@@ -141,6 +141,7 @@ class HcompressTUI(App[None]):
                     reg = PluginRegistry()
                     guard = self.query_one("#bomb-guard", Switch).value
                     if guard: reg.discover_builtin()
+                    reg.discover_external()
                     stats = decompress(path, out, DecompressConfig(registry=reg))
                     self.app.call_from_thread(lambda: self._done(stats.original_size, 0, name))
                 elif parallel:
