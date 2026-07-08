@@ -301,7 +301,7 @@ def plugin_list(as_json: bool = False) -> None:
 
     if as_json:
         import json as _json
-        console.print(_json.dumps(info, ensure_ascii=False))
+        print(_json.dumps(info, ensure_ascii=False), flush=True)
         return
 
     from rich.table import Table
