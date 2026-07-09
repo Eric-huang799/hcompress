@@ -21,8 +21,7 @@ from hcompress.plugins.sdk.base import (
     BaseChecksum,
     BaseIOBackend,
     BaseBlockSplitter,
-    BaseCompressHook,
-    BaseDecompressHook,
+    BaseHook,
     BaseObserver,
     BaseExtension,
 )
@@ -31,7 +30,7 @@ from hcompress.plugins.sdk.scaffold import scaffold
 __all__ = [
     "BaseCodec", "BaseTransform", "BaseFilter",
     "BaseMatchFinder", "BaseChecksum", "BaseIOBackend",
-    "BaseBlockSplitter", "BaseCompressHook", "BaseDecompressHook",
+    "BaseBlockSplitter", "BaseHook",
     "BaseObserver", "BaseExtension",
     "scaffold",
 ]

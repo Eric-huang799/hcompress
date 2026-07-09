@@ -25,7 +25,7 @@ from hcompress.interfaces.matchfinder import IMatchFinder
 from hcompress.interfaces.checksum import IChecksum
 from hcompress.interfaces.io_backend import IIOBackend
 from hcompress.interfaces.block_splitter import IBlockSplitter
-from hcompress.interfaces.hook import ICompressHook, IDecompressHook
+from hcompress.interfaces.hook import IHook
 from hcompress.interfaces.observer import IObserver
 from hcompress.interfaces.extension import IExtension
 from hcompress.plugins.manifest import PluginMeta
@@ -40,8 +40,7 @@ _INTERFACE_MAP: dict[str, tuple[Type, str]] = {
     "IChecksum":       (IChecksum,       "checksum"),
     "IIOBackend":      (IIOBackend,      "io"),
     "IBlockSplitter":  (IBlockSplitter,  "block_splitter"),
-    "ICompressHook":   (ICompressHook,   "compress_hook"),
-    "IDecompressHook": (IDecompressHook, "decompress_hook"),
+    "IHook":           (IHook,           "hook"),
     "IObserver":       (IObserver,       "observer"),
     "IExtension":      (IExtension,      "extension"),
 }
@@ -274,10 +273,10 @@ class PluginRegistry:
         return list(self._plugins["block_splitter"])
 
     def get_compress_hooks(self) -> list:
-        return list(self._plugins["compress_hook"])
+        return [i for i in self._plugins["hook"] if getattr(i, "hook_id", 0) in (0, 1)]
 
     def get_decompress_hooks(self) -> list:
-        return list(self._plugins["decompress_hook"])
+        return [i for i in self._plugins["hook"] if getattr(i, "hook_id", 0) in (0, 2)]
 
     def get_observers(self) -> list:
         return list(self._plugins["observer"])

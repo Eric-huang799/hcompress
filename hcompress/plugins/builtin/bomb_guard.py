@@ -1,20 +1,10 @@
-"""BombGuard — compression-bomb detection plugin.
-
-Implements IDecompressHook.  Inspects the HCF header *before* any
-decompressed byte is written and aborts if the expansion ratio
-exceeds a configurable threshold.
-
-A compression bomb is a tiny archive that expands to a gigantic
-output, designed to exhaust disk / memory.  Because the HCF header
-stores the original file size, we can detect this with zero I/O
-overhead — just compare the numbers.
-"""
+"""BombGuard — compression-bomb detection plugin (decompress only)."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from hcompress.interfaces.hook import IDecompressHook
+from hcompress.interfaces.hook import IHook
 from hcompress.plugins.manifest import PluginMeta
 
 if TYPE_CHECKING:
@@ -26,46 +16,28 @@ class BombDetectedError(RuntimeError):
     """Raised when a suspected compression bomb is detected."""
 
 
-class BombGuardPlugin(IDecompressHook):
-    """Reject files whose expansion ratio exceeds *max_ratio*.
-
-    Default threshold is **100:1** — i.e. if the compressed file is
-    1 KB but claims to decompress to more than 100 KB, decompression
-    is aborted.
-
-    Also enforces a *max_recursion_depth* to catch nested archives
-    (a .hcf inside a .hcf inside a .hcf …).  This is a soft limit
-    tracked per-process via a class-level counter.
-
-    Configuration
-    -------------
-    >>> guard = BombGuardPlugin(max_ratio=100, max_depth=5)
-    >>> config = DecompressConfig(hooks=[guard])
-
-    Disable via CLI
-    ---------------
-    ``hcompress d file.hcf --no-bomb-guard``  (removes the hook).
-    """
+class BombGuardPlugin(IHook):
+    hook_id: int = 2  # decompress only
 
     meta: ClassVar[PluginMeta] = PluginMeta(
-        name="BombGuardPlugin",
-        version="1.0.0",
-        author="hcompress team",
+        name="BombGuardPlugin", version="1.0.0", author="hcompress team",
         description="压缩炸弹/嵌套炸弹检测，默认 100:1 膨胀比阈值",
-        plugin_type="decompress_hook",
-        priority=10,
+        plugin_type="hook", priority=10,
     )
 
-    # Per-process recursion counter (class-level — crude but effective)
     _depth: int = 0
 
     def __init__(self, max_ratio: int = 100, max_depth: int = 5) -> None:
         self.max_ratio = max_ratio
         self.max_depth = max_depth
 
-    # ── IDecompressHook ────────────────────────────────────────────────
+    def on_compress_start(self, ctx): pass
+    def on_freq_done(self, ctx, freq): pass
+    def on_header_written(self, ctx, header): pass
+    def on_block_encoded(self, ctx, block_idx, raw, encoded): pass
+    def on_compress_done(self, ctx, stats): pass
 
-    def on_start(self, ctx: DecompressContext) -> None:
+    def on_decompress_start(self, ctx):
         BombGuardPlugin._depth += 1
         if BombGuardPlugin._depth > self.max_depth:
             BombGuardPlugin._depth -= 1
@@ -80,7 +52,6 @@ class BombGuardPlugin(IDecompressHook):
         if compressed_size <= 0:
             compressed_size = 1
         ratio = header.original_size / compressed_size
-
         if ratio > self.max_ratio:
             raise BombDetectedError(
                 f"检测到疑似压缩炸弹！\n"
@@ -91,13 +62,9 @@ class BombGuardPlugin(IDecompressHook):
             )
         return True
 
-    def on_block_decoded(
-        self, ctx: DecompressContext, block_idx: int, encoded: bytes, raw: bytes
-    ) -> None:
-        pass
-
-    def on_done(self, ctx: DecompressContext, stats) -> None:
+    def on_block_decoded(self, ctx, block_idx, encoded, raw): pass
+    def on_decompress_done(self, ctx, stats):
         BombGuardPlugin._depth = max(0, BombGuardPlugin._depth - 1)
 
-    def on_error(self, ctx: DecompressContext, error: Exception) -> None:
+    def on_error(self, ctx, error):
         BombGuardPlugin._depth = max(0, BombGuardPlugin._depth - 1)

@@ -44,6 +44,8 @@ class PluginMeta:
     plugin_type: str = ""
     priority: int = 100
     enabled: bool = True
+    is_hub: bool = False   # True if this plugin is an expandable hub
+    sub_count: int = 0     # number of sub-plugins inside a hub (for badge)
 
     def to_dict(self) -> dict:
         """Return a JSON-serialisable dict (for IPC / CLI display)."""

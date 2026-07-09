@@ -19,7 +19,7 @@ from hcompress.interfaces.matchfinder import IMatchFinder
 from hcompress.interfaces.checksum import IChecksum
 from hcompress.interfaces.io_backend import IIOBackend
 from hcompress.interfaces.block_splitter import IBlockSplitter
-from hcompress.interfaces.hook import ICompressHook, IDecompressHook
+from hcompress.interfaces.hook import IHook
 from hcompress.interfaces.observer import IObserver
 from hcompress.interfaces.extension import IExtension
 from hcompress.plugins.manifest import PluginMeta
@@ -148,36 +148,27 @@ class BaseBlockSplitter(IBlockSplitter):
         return b"".join(b.data for b in blocks)
 
 
-# ── Compress Hook (no-op defaults) ──────────────────────────────────────────
+# ── Hook (no-op defaults, both sides) ───────────────────────────────────────
 
-class BaseCompressHook(ICompressHook):
+class BaseHook(IHook):
+    hook_id: int = 0
     meta: ClassVar[PluginMeta] = PluginMeta(
-        name="unnamed-compress-hook", plugin_type="compress_hook",
+        name="unnamed-hook", plugin_type="hook",
     )
 
-    def on_start(self, ctx: CompressContext) -> None: pass
+    def on_compress_start(self, ctx: CompressContext) -> None: pass
     def on_freq_done(self, ctx: CompressContext, freq: list[int]) -> None: pass
     def on_header_written(self, ctx: CompressContext, header: HeaderInfo) -> None: pass
     def on_block_encoded(self, ctx: CompressContext, block_idx: int,
                          raw: bytes, encoded: bytes) -> None: pass
-    def on_done(self, ctx: CompressContext, stats) -> None: pass
-    def on_error(self, ctx: CompressContext, error: Exception) -> None: pass
-
-
-# ── Decompress Hook (no-op defaults) ────────────────────────────────────────
-
-class BaseDecompressHook(IDecompressHook):
-    meta: ClassVar[PluginMeta] = PluginMeta(
-        name="unnamed-decompress-hook", plugin_type="decompress_hook",
-    )
-
-    def on_start(self, ctx: DecompressContext) -> None: pass
+    def on_compress_done(self, ctx: CompressContext, stats) -> None: pass
+    def on_decompress_start(self, ctx: DecompressContext) -> None: pass
     def on_header_read(self, ctx: DecompressContext, header: HeaderInfo) -> bool:
         return True
     def on_block_decoded(self, ctx: DecompressContext, block_idx: int,
                          encoded: bytes, raw: bytes) -> None: pass
-    def on_done(self, ctx: DecompressContext, stats) -> None: pass
-    def on_error(self, ctx: DecompressContext, error: Exception) -> None: pass
+    def on_decompress_done(self, ctx: DecompressContext, stats) -> None: pass
+    def on_error(self, ctx, error: Exception) -> None: pass
 
 
 # ── Observer (no-op defaults) ───────────────────────────────────────────────

@@ -243,7 +243,7 @@ def compress(
     for hook in config.hooks:
         if getattr(hook, "supports_parallel", False):
             parallel_hook = hook
-            hook.on_start(ctx)
+            hook.on_compress_start(ctx)
             if getattr(ctx, "_parallel_enabled", False):
                 use_parallel = True
                 parallel_workers = getattr(ctx, "_parallel_workers", 4)
@@ -256,7 +256,7 @@ def compress(
         stats.ratio = r["ratio"]
         stats.elapsed_ms = r["elapsed_ms"]
         if parallel_hook is not None:
-            parallel_hook.on_done(ctx, stats)
+            parallel_hook.on_compress_done(ctx, stats)
         return stats
 
     # --- checksum ---
@@ -275,9 +275,9 @@ def compress(
             ext.on_compress_data, ctx, data, "raw", fallback=data,
         )
 
-    # --- hook: on_start ---
+    # --- hook: on_compress_start ---
     for hook in config.hooks:
-        _safe_call(f"hook.on_start", hook.on_start, ctx)
+        _safe_call(f"hook.on_compress_start", hook.on_compress_start, ctx)
 
     # --- transforms (forward) ---
     for t in config.transforms:
@@ -370,9 +370,9 @@ def compress(
         _safe_call(f"extension {ext.extension_id}.on_compress_done",
                     ext.on_compress_done, ctx, stats)
 
-    # --- hook: done ---
+    # --- hook: on_compress_done ---
     for hook in config.hooks:
-        _safe_call(f"hook.on_done", hook.on_done, ctx, stats)
+        _safe_call(f"hook.on_compress_done", hook.on_compress_done, ctx, stats)
 
     stats.elapsed_ms = (time.perf_counter() - t0) * 1000
     return stats
@@ -447,9 +447,9 @@ def decompress(
             fallback=raw_bitstream,
         )
 
-    # --- hook: start ---
+    # --- hook: on_decompress_start ---
     for hook in config.hooks:
-        _safe_call(f"hook.on_start", hook.on_start, ctx)
+        _safe_call(f"hook.on_decompress_start", hook.on_decompress_start, ctx)
 
     # --- hook: header_read (bomb guard checkpoint) ---
     for hook in config.hooks:
@@ -545,7 +545,7 @@ def decompress(
     stats.elapsed_ms = (time.perf_counter() - t0) * 1000
 
     for hook in config.hooks:
-        _safe_call(f"hook.on_done", hook.on_done, ctx, stats)
+        _safe_call(f"hook.on_decompress_done", hook.on_decompress_done, ctx, stats)
     return stats
 
 

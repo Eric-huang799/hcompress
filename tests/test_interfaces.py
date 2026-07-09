@@ -10,8 +10,7 @@ from hcompress.interfaces import (
     IIOBackend,
     IIOBitStream,
     IBlockSplitter,
-    ICompressHook,
-    IDecompressHook,
+    IHook,
     IObserver,
     IExtension,
 )
@@ -26,8 +25,7 @@ ALL_INTERFACES = [
     IIOBackend,
     IIOBitStream,
     IBlockSplitter,
-    ICompressHook,
-    IDecompressHook,
+    IHook,
     IObserver,
     IExtension,
 ]

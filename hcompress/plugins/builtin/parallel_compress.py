@@ -1,41 +1,31 @@
-"""多线程并行压缩插件 — 拖入 plugins/builtin/ 即可启用。
-
-启用后，大文件压缩自动使用多进程并行加速：
-  2 进程: 2.4× / 4 进程: 3.1×
-
-基于 ProcessPoolExecutor，绕过 Python GIL。
-"""
+"""多线程并行压缩插件 — 大文件自动启用多进程并行。"""
 from typing import ClassVar
 
-from hcompress.plugins.sdk import BaseCompressHook
+from hcompress.plugins.sdk import BaseHook
 from hcompress.plugins.manifest import PluginMeta
 
-PARALLEL_THRESHOLD = 256 * 1024  # 256 KB
+PARALLEL_THRESHOLD = 256 * 1024
 WORKERS = 4
 
 
-class ParallelCompressPlugin(BaseCompressHook):
-    """大文件自动切换多进程并行压缩。"""
+class ParallelCompressPlugin(BaseHook):
+    hook_id: int = 1  # compress only
 
     meta: ClassVar[PluginMeta] = PluginMeta(
-        name="ParallelCompressPlugin",
-        version="1.0.0",
-        author="hcompress team",
+        name="ParallelCompressPlugin", version="1.0.0", author="hcompress team",
         description="大文件(>256KB)自动启用 ProcessPoolExecutor 多进程并行",
-        plugin_type="compress_hook",
-        priority=90,
+        plugin_type="hook", priority=90,
     )
 
     supports_parallel: bool = True
 
-    def on_start(self, ctx):
-        import os
+    def on_compress_start(self, ctx):
         if ctx.original_size > PARALLEL_THRESHOLD:
             ctx._parallel_workers = WORKERS
             ctx._parallel_enabled = True
         else:
             ctx._parallel_enabled = False
 
-    def on_done(self, ctx, stats):
+    def on_compress_done(self, ctx, stats):
         if getattr(ctx, "_parallel_enabled", False):
             print(f"[ParallelCompress] 多进程并行完成: {ctx._parallel_workers} workers")
