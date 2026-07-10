@@ -15,6 +15,30 @@ FLAG_DIRECTORY = 1 << 8
 _TERMINATOR = struct.pack("<I", 0)
 
 
+def list_archive(data: bytes) -> list[dict]:
+    """Parse archive metadata without extracting files. Returns [{name, size}, ...]."""
+    entries = []
+    offset = 0
+    while offset < len(data):
+        if offset + 4 > len(data):
+            break
+        path_len = struct.unpack_from("<I", data, offset)[0]
+        offset += 4
+        if path_len == 0:
+            break
+        if offset + path_len + 8 > len(data):
+            break
+        rel_path = data[offset:offset + path_len].decode("utf-8")
+        offset += path_len
+        file_size = struct.unpack_from("<Q", data, offset)[0]
+        offset += 8
+        if offset + file_size > len(data):
+            break
+        entries.append({"name": rel_path, "size": file_size})
+        offset += file_size
+    return entries
+
+
 def pack_dir(dir_path: str, on_skip=None) -> tuple[bytes, int]:
     buf = bytearray()
     base = Path(dir_path).resolve()

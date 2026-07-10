@@ -214,6 +214,59 @@ def decompress_cmd(
 # ── info ─────────────────────────────────────────────────────────────────────
 
 
+@main.command(name="list")
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option("--json", "as_json", is_flag=True, hidden=True)
+def list_cmd(input_path: str, as_json: bool = False) -> None:
+    """List files inside a directory HCF archive."""
+    try:
+        from hcompress.format import read_header
+        from hcompress.canonical import build_decode_table, decode_symbol
+        from hcompress.bitstream import BitReader
+        from hcompress.c_ext import c_decode_bulk
+        from hcompress.archiver import list_archive, is_dir_archive
+
+        with open(input_path, "rb") as f:
+            header = read_header(f)
+            raw_bitstream = f.read()
+        if not is_dir_archive(header.flags):
+            console.print("[yellow]⚠[/] 不是目录归档文件")
+            raise SystemExit(1)
+
+        # Decode in-memory
+        base_code, symbol_offset, symbols_by_len, max_len = build_decode_table(header.bit_lengths)
+        flat_syms = []; off = [0]
+        for lst in symbols_by_len: off.append(off[-1] + len(lst)); flat_syms.extend(lst)
+        data = c_decode_bulk(raw_bitstream, base_code, off, flat_syms, max_len, header.original_size)
+        if data is None:
+            reader = BitReader(raw_bitstream)
+            decoded = bytearray()
+            for _ in range(header.original_size):
+                decoded.append(decode_symbol(reader, base_code, symbol_offset, symbols_by_len, max_len))
+            data = bytes(decoded)
+
+        entries = list_archive(data)
+
+        if as_json:
+            import json as _json
+            print(_json.dumps({"entries": entries, "count": len(entries), "original_size": header.original_size}, ensure_ascii=False))
+            return
+
+        from rich.table import Table
+        table = Table(title=f"📁 归档内容 — {os.path.basename(input_path)}", expand=False)
+        table.add_column("文件", style="cyan")
+        table.add_column("大小", style="white", justify="right")
+        total = 0
+        for e in entries:
+            table.add_row(e["name"], _format_size(e["size"]))
+            total += e["size"]
+        table.add_row("[bold]合计[/]", f"[bold]{_format_size(total)}[/]")
+        console.print(table)
+    except Exception as exc:
+        console.print(f"[red]✗[/] {exc}")
+        raise SystemExit(1)
+
+
 @main.command(name="info")
 @click.argument("input_path", type=click.Path(exists=True))
 def info_cmd(input_path: str) -> None:
