@@ -4,7 +4,7 @@ from typing import ClassVar
 from hcompress.plugins.sdk import BaseHook
 from hcompress.plugins.manifest import PluginMeta
 
-PARALLEL_THRESHOLD = 256 * 1024
+PARALLEL_THRESHOLD = 50 * 1024 * 1024  # 50 MB, avoids PyInstaller freeze support issues
 WORKERS = 4
 
 

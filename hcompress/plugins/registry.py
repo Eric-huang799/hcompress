@@ -308,10 +308,10 @@ class PluginRegistry:
         return self._enabled_instances("block_splitter")
 
     def get_enabled_compress_hooks(self) -> list:
-        return self._enabled_instances("compress_hook")
+        return [i for i in self._enabled_instances("hook") if getattr(i, "hook_id", 0) in (0, 1)]
 
     def get_enabled_decompress_hooks(self) -> list:
-        return self._enabled_instances("decompress_hook")
+        return [i for i in self._enabled_instances("hook") if getattr(i, "hook_id", 0) in (0, 2)]
 
     def get_enabled_observers(self) -> list:
         return self._enabled_instances("observer")

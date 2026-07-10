@@ -6,6 +6,10 @@ Double-click → GUI.  Command-line args → CLI.
 
 import os
 import sys
+import multiprocessing
+
+# PyInstaller multiprocessing support on Windows
+multiprocessing.freeze_support()
 
 # When bundled by PyInstaller, the C extension DLL is next to the exe.
 # Add that directory to PATH so ctypes can find it.
