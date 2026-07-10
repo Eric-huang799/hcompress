@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class BombDetectedError(RuntimeError):
-    """Raised when a suspected compression bomb is detected."""
+    pass
 
 
 class BombGuardPlugin(IHook):

@@ -1,27 +1,7 @@
 """HCF (Huffman Compressed File) header format.
 
-Layout
-------
-Offset  Size  Field
-------  ----  -----
-0       4     Magic:  'H' 'C' 'F' 0x1A
-4       2     Version  (uint16 LE, v1 = 0x0001)
-6       2     Flags    (uint16 LE, see below)
-8       2     CRC-16   (of header with this field zeroed)
-10      2     N = symbol count (uint16 LE, typically 256)
-12      N     Bit-length table (one uint8 per symbol, 0 = absent)
-12+N    8     Original size in bytes (uint64 LE)
-20+N    4     Extension length E (uint32 LE, only if flags & HAS_EXT)
-24+N    E     Extension data (UTF-8 JSON, only if flags & HAS_EXT)
------   ---   ---- end of header ----
-...    ...    Compressed bitstream, padded to byte boundary
-
-Flags (uint16 LE)
------------------
-bit 0       HAS_EXTENSION_DATA — extension data follows original_size
-bits 1-4    COMPRESSION_LEVEL  — 0-9 (default 6)
-bits 5-7    ENTROPY_CODER_ID   — 0=CanonicalHuffman, 1-7 reserved
-bits 8-15   Reserved (must be 0)
+Layout: Magic(4) | Version(2) | Flags(2) | CRC-16(2) | N(2) | Bit-lengths(N) | OriginalSize(8) | [ExtLen(4)+ExtData] | Bitstream.
+Flags: bit0=HAS_EXT, bits1-4=COMPRESS_LEVEL, bits5-7=CODER_ID, bit8=DIRECTORY.
 """
 
 from __future__ import annotations
@@ -87,9 +67,9 @@ class HeaderInfo:
 
     version: int
     flags: int
-    bit_lengths: list[int]              # 256 elements, 0 = symbol absent
+    bit_lengths: list[int]
     original_size: int
-    extension_data: bytes = b""         # raw UTF-8 JSON bytes
+    extension_data: bytes = b""
 
     # --- derived properties ---
 
@@ -116,11 +96,7 @@ def write_header(
     flags: int = 0,
     extension_data: bytes = b"",
 ) -> int:
-    """Write HCF header to a writable binary stream.
-
-    Returns the total number of header bytes written.
-    """
-    # Validate
+    """Write HCF header to binary stream. Returns total header bytes written."""
     assert len(bit_lengths) == ALPHABET_SIZE, "bit_lengths must be 256 elements"
 
     if extension_data:
@@ -151,12 +127,7 @@ def write_header(
 
 
 def read_header(f) -> HeaderInfo:
-    """Read and validate an HCF header from a readable binary stream.
-
-    Raises:
-        ValueError: bad magic, unsupported version, CRC mismatch.
-        EOFError: truncated header.
-    """
+    """Read and validate HCF header from binary stream. Raises ValueError/EOFError on corruption."""
     # Read fixed portion (up to original size, excluding extension)
     # Fixed: 4(magic)+2(ver)+2(flags)+2(crc)+2(N)+256(bl)+8(orig) = 276
     fixed = _read_exact(f, 276)
@@ -216,7 +187,6 @@ def read_header(f) -> HeaderInfo:
 
 
 def _read_exact(f, n: int) -> bytes:
-    """Read exactly *n* bytes from *f*, raising EOFError on short read."""
     data = f.read(n)
     if len(data) < n:
         raise EOFError(
@@ -229,11 +199,7 @@ def _read_exact(f, n: int) -> bytes:
 
 
 def pack_extension_json(extensions: list) -> bytes:
-    """Serialize registered extensions' data to the HCF header JSON blob.
-
-    Each extension contributes a dict keyed by its ``extension_id``.
-    The result is a UTF-8 JSON object (possibly empty).
-    """
+    """Serialize extensions' data to UTF-8 JSON for HCF header."""
     payload: dict[str, dict] = {}
     for ext in extensions:
         try:
@@ -248,11 +214,7 @@ def pack_extension_json(extensions: list) -> bytes:
 
 
 def unpack_extension_json(raw: bytes, extensions: list) -> None:
-    """Deserialize HCF header extension JSON back into extension instances.
-
-    Each extension's ``set_extension_data()`` is called with its slice
-    of the payload (or an empty dict if not present).
-    """
+    """Deserialize HCF header extension JSON back into extension instances."""
     if not raw:
         return
     try:

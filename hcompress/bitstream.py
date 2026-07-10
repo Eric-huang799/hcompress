@@ -2,9 +2,6 @@
 
 BitWriter — accumulates bits and flushes to a byte buffer.
 BitReader — reads individual bits from a bytes buffer.
-
-Both operate MSB-first: when writing code=0b101 with nbits=3,
-the bits 1, 0, 1 are emitted in that order.
 """
 
 from __future__ import annotations
@@ -13,16 +10,10 @@ from __future__ import annotations
 class BitWriter:
     """Write individual bits to an in-memory byte buffer.
 
-    Bits are packed into bytes LSB-first within each byte (first bit
-    written becomes bit 0 of byte 0), but the *code value* is consumed
-    MSB-first — see :meth:`write_bits`.
-
-    Typical usage::
-
         bw = BitWriter()
-        bw.write_bits(0b0, 1)    # code for 'A'
-        bw.write_bits(0b10, 2)   # code for 'B'
-        compressed = bw.flush()  # → bytes ready to write to file
+        bw.write_bits(0b0, 1)
+        bw.write_bits(0b10, 2)
+        compressed = bw.flush()
     """
 
     def __init__(self) -> None:
@@ -34,11 +25,6 @@ class BitWriter:
     # ── write ────────────────────────────────────────────────────────────
 
     def write_bits(self, value: int, nbits: int) -> None:
-        """Write the lower *nbits* of *value*, MSB first.
-
-        Example:
-            write_bits(0b101, 3) emits bit 2 (=1), bit 1 (=0), bit 0 (=1).
-        """
         if nbits <= 0:
             return
         for i in range(nbits - 1, -1, -1):
@@ -54,7 +40,6 @@ class BitWriter:
     # ── finalise ─────────────────────────────────────────────────────────
 
     def flush(self) -> bytes:
-        """Pad any partial byte with zeros and return the full byte buffer."""
         if self._bits_in_current > 0:
             self._buffer.append(self._current_byte)
             self._current_byte = 0
@@ -64,27 +49,18 @@ class BitWriter:
     # ── query ────────────────────────────────────────────────────────────
 
     def tell_bytes(self) -> int:
-        """Number of *full* bytes written so far (before flush)."""
         return len(self._buffer)
 
     def tell_bits(self) -> int:
-        """Total bits written."""
         return self._total_bits
 
 
 class BitReader:
     """Read individual bits from a bytes buffer.
 
-    Bits are consumed in the same order they were written: LSB-first
-    within each byte, and the bits themselves were emitted MSB-first
-    by :class:`BitWriter`.
-
-    Typical usage::
-
         br = BitReader(compressed_data)
         while not br.exhausted():
             bit = br.read_bits(1)
-            ...  # walk decode tree / lookup table
     """
 
     def __init__(self, data: bytes) -> None:
@@ -96,13 +72,6 @@ class BitReader:
     # ── read ─────────────────────────────────────────────────────────────
 
     def read_bits(self, nbits: int) -> int:
-        """Read *nbits* bits and return them as a uint32, MSB first.
-
-        The first bit read becomes the MSB of the returned value.
-
-        Raises:
-            EOFError: not enough bits remaining.
-        """
         if nbits <= 0:
             return 0
         value = 0
@@ -122,19 +91,15 @@ class BitReader:
         return value
 
     def read_bit(self) -> int:
-        """Read a single bit (convenience wrapper). Returns 0 or 1."""
         return self.read_bits(1)
 
     # ── query ────────────────────────────────────────────────────────────
 
     def tell_bits(self) -> int:
-        """Total bits read so far."""
         return self._total_bits
 
     def tell_bytes(self) -> int:
-        """Bytes consumed so far (rounded down to full bytes)."""
         return self._byte_pos
 
     def exhausted(self) -> bool:
-        """True when all bits have been consumed."""
         return self._byte_pos >= len(self._data)

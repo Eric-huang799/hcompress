@@ -1,11 +1,6 @@
-"""
-No-op base classes for every hcompress interface.
+"""No-op base classes for every hcompress interface.
 
-Subclass these instead of the raw ABCs — override only the methods
-you care about.  All unimplemented methods default to pass-through.
-
-Each base class carries a ``meta`` attribute (:class:`PluginMeta`) that
-the plugin registry reads for discovery, display, and enable/disable.
+Subclass these instead of the raw ABCs — override only the methods you need.
 """
 
 from __future__ import annotations

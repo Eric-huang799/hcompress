@@ -1,10 +1,4 @@
-"""BwtMtfTransform — 联合 BWT + MTF 双向变换插件。
-
-将 Burrows-Wheeler 变换和 Move-to-Front 变换合并为一个 ITransform，
-压缩时 BWT → MTF，解压时 MTF⁻¹ → BWT⁻¹。
-
-单个插件占用一个 transform 槽位，不需要扩展坞即可同时使用两种数据结构。
-"""
+"""BwtMtfTransform — combined BWT + MTF bidirectional transform (BWT→MTF forward, MTF⁻¹→BWT⁻¹ reverse)."""
 
 from __future__ import annotations
 
@@ -16,11 +10,7 @@ from hcompress.plugins.manifest import PluginMeta
 
 
 class BwtMtfTransform(ITransform):
-    """BWT + MTF 联合变换。
-
-    Forward:  BWT (后缀数组排序) → MTF (自组织列表)
-    Reverse:  MTF⁻¹ → BWT⁻¹ (LF-mapping 重建)
-    """
+    """BWT + MTF combined transform: forward BWT→MTF, reverse MTF⁻¹→BWT⁻¹."""
 
     name: str = "bwt_mtf"
     meta: ClassVar[PluginMeta] = PluginMeta(

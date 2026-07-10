@@ -1,13 +1,4 @@
-"""PluginRegistry — discover, load, and manage hcompress plugins.
-
-Supports:
-- Directory scanning & dynamic import (backward-compatible)
-- Per-plugin metadata via ``PluginMeta``
-- Enable / disable at runtime
-- Priority-based ordering
-- Serializable ``get_all()`` for CLI / v2 IPC
-- Hot-reload (re-import a previously loaded plugin file)
-"""
+"""PluginRegistry — discover, load, and manage hcompress plugins."""
 
 from __future__ import annotations
 
@@ -47,13 +38,11 @@ _INTERFACE_MAP: dict[str, tuple[Type, str]] = {
 
 
 def _infer_meta(instance: object, category: str) -> PluginMeta:
-    """Build a default PluginMeta for an instance that lacks one."""
     name = type(instance).__name__
     return PluginMeta(name=name, plugin_type=category)
 
 
 def _read_meta(instance: object, category: str) -> PluginMeta:
-    """Read PluginMeta from an instance, falling back to inference."""
     raw = getattr(type(instance), "meta", None)
     if raw is not None:
         # If it's a ClassVar[PluginMeta] on the class, read it
@@ -72,23 +61,7 @@ _CATEGORIES: list[str] = [cat for _, cat in _INTERFACE_MAP.values()]
 
 
 class PluginRegistry:
-    """Plugin discovery and lifecycle manager.
-
-    Usage::
-
-        registry = PluginRegistry()
-        registry.discover(["~/.hcompress/plugins", "./plugins"])
-        registry.discover_builtin()
-
-        config = CompressConfig(registry=registry)
-        # _merge_registry() auto-uses get_enabled_*() helpers
-
-        registry.disable("BombGuardPlugin")
-        registry.enable("BombGuardPlugin")
-
-        # Serializable dump for CLI / v2 IPC:
-        info = registry.get_all()  # → list[dict]
-    """
+    """Plugin discovery and lifecycle manager."""
 
     def __init__(self) -> None:
         self._plugins: dict[str, list] = {cat: [] for cat in _CATEGORIES}
@@ -99,10 +72,6 @@ class PluginRegistry:
     # ── discovery ───────────────────────────────────────────────────────
 
     def discover(self, paths: list[str]) -> int:
-        """Scan *paths* for plugin ``.py`` files, import them, register plugins.
-
-        Returns the number of newly loaded plugins.
-        """
         count = 0
         for base in paths:
             base = os.path.expanduser(base)
@@ -119,10 +88,6 @@ class PluginRegistry:
         return count
 
     def discover_builtin(self) -> int:
-        """Load built-in plugins shipped with hcompress.
-
-        Handles both normal installs and PyInstaller-frozen bundles.
-        """
         builtin_dir = os.path.join(os.path.dirname(__file__), "builtin")
         paths = [builtin_dir]
 
@@ -135,15 +100,6 @@ class PluginRegistry:
         return self.discover(paths)
 
     def discover_external(self) -> int:
-        """Scan the ``plugins/`` directory next to the executable or in user paths.
-
-        This is the user-facing plugin directory — drop a ``.py`` file
-        into it and restart to auto-load.  Does NOT scan the internal
-        hcompress package (built-in plugins are handled by
-        :meth:`discover_builtin`).
-
-        Returns the number of newly loaded plugins.
-        """
         import sys
 
         candidates = []
@@ -167,10 +123,6 @@ class PluginRegistry:
     # ── manual registration ─────────────────────────────────────────────
 
     def register(self, instance: object) -> bool:
-        """Manually register a plugin instance.
-
-        Returns True if the instance matched a known interface.
-        """
         for iface_cls, category in _INTERFACE_MAP.values():
             if isinstance(instance, iface_cls):
                 self._plugins[category].append(instance)
@@ -182,7 +134,6 @@ class PluginRegistry:
     # ── enable / disable ────────────────────────────────────────────────
 
     def enable(self, name: str) -> bool:
-        """Enable a plugin by name. Returns False if not found."""
         meta = self._metas.get(name)
         if meta is None:
             return False
@@ -190,7 +141,6 @@ class PluginRegistry:
         return True
 
     def disable(self, name: str) -> bool:
-        """Disable a plugin by name. Returns False if not found."""
         meta = self._metas.get(name)
         if meta is None:
             return False
@@ -198,12 +148,10 @@ class PluginRegistry:
         return True
 
     def is_enabled(self, name: str) -> bool | None:
-        """Return enabled status, or None if plugin not found."""
         meta = self._metas.get(name)
         return meta.enabled if meta else None
 
     def _enabled_instances(self, category: str) -> list:
-        """Return instances in *category* whose meta.enabled is True."""
         result = []
         for inst in self._plugins[category]:
             meta = self._metas.get(type(inst).__name__)
@@ -219,13 +167,6 @@ class PluginRegistry:
     # ── hot reload ──────────────────────────────────────────────────────
 
     def reload_file(self, path: str) -> int:
-        """Re-import a previously loaded plugin file.
-
-        Removes old instances from the same file, re-executes the module,
-        and re-registers any new plugin instances.
-
-        Returns the number of plugins loaded from the reloaded file.
-        """
         path = os.path.abspath(path)
         # Remove old instances from this file
         old_names = [
@@ -322,10 +263,6 @@ class PluginRegistry:
     # ── serializable snapshot ───────────────────────────────────────────
 
     def get_all(self) -> dict:
-        """Return all registered plugins as a JSON-serialisable dict.
-
-        Suitable for CLI ``plugin list`` and v2 Electron IPC.
-        """
         plugins: list[dict] = []
         for category in _CATEGORIES:
             for inst in self._plugins[category]:
@@ -343,11 +280,9 @@ class PluginRegistry:
         }
 
     def get_meta(self, name: str) -> PluginMeta | None:
-        """Return the PluginMeta for a plugin by name."""
         return self._metas.get(name)
 
     def get_all_metas(self) -> dict[str, PluginMeta]:
-        """Return all metas keyed by plugin name."""
         # Reconcile: ensure every loaded instance has a tracked meta
         for category in _CATEGORIES:
             for inst in self._plugins[category]:
@@ -408,7 +343,6 @@ class PluginRegistry:
         return count
 
     def _scan_module(self, module, *, source_path: str = "") -> int:
-        """Instantiate and register plugin classes found in *module*."""
         count = 0
         for name in dir(module):
             obj = getattr(module, name)
@@ -435,6 +369,5 @@ class PluginRegistry:
 
     @staticmethod
     def _module_name(path: str) -> str:
-        """Derive a unique module name from a file path."""
         name = os.path.splitext(os.path.basename(path))[0]
         return f"hcompress_plugin_{name}"

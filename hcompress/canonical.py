@@ -15,12 +15,7 @@ MAX_CODE_LENGTH = 255     # theoretical max for 256-symbol alphabet
 
 
 def freq_table(data: bytes) -> list[int]:
-    """Count symbol frequencies in *data*.
-
-    Returns a 256-element list where ``freq[s]`` is the number of
-    occurrences of byte value ``s``.  Symbols that never appear have
-    a frequency of 0.
-    """
+    """Return 256-element frequency list for *data*."""
     freq: list[int] = [0] * ALPHABET_SIZE
     for byte in data:
         freq[byte] += 1
@@ -31,12 +26,6 @@ def freq_table(data: bytes) -> list[int]:
 
 
 def _build_bit_lengths(freq: list[int]) -> list[int]:
-    """Build Huffman tree from frequencies and return bit-length per symbol.
-
-    Uses the standard min-heap algorithm.  Symbols with freq == 0 get
-    bit-length 0 (i.e. they are absent from the stream).
-    """
-    # Collect leaf nodes: (weight, symbol)
     heap: list[tuple[int, int, object]] = []
     for symbol, weight in enumerate(freq):
         if weight > 0:
@@ -47,7 +36,7 @@ def _build_bit_lengths(freq: list[int]) -> list[int]:
     if len(heap) == 0:
         return [0] * ALPHABET_SIZE
 
-    # Edge case: single symbol — give it code length 1
+    # Edge case: single symbol
     if len(heap) == 1:
         bl = [0] * ALPHABET_SIZE
         bl[heap[0][2]] = 1
@@ -81,13 +70,10 @@ def _build_bit_lengths(freq: list[int]) -> list[int]:
 
 
 def canonical_from_freq(freq: list[int]) -> tuple[list[int], list[int]]:
-    """Build canonical Huffman codes from a frequency table.
+    """Build canonical Huffman codes from frequency table.
 
     Returns:
         (codes, bit_lengths) — both 256-element lists.
-        ``codes[s]`` is the canonical codeword (uint32, LSB-aligned).
-        ``bit_lengths[s]`` is the number of bits in that codeword
-        (0 = symbol not present).
     """
     bit_lengths = _build_bit_lengths(freq)
 
@@ -121,19 +107,12 @@ def canonical_from_freq(freq: list[int]) -> tuple[list[int], list[int]]:
 def build_decode_table(
     bit_lengths: list[int],
 ) -> tuple[
-    list[int],           # base_code[length] — first canonical code for this length
-    list[int],           # symbol_offset[length] — index into symbols_by_len flat list
-    list[list[int]],     # symbols_by_len[length] — symbols with this length, ordered by code
-    int,                 # max_code_length
+    list[int],
+    list[int],
+    list[list[int]],
+    int,
 ]:
-    """Build fast-decode structures from bit-lengths.
-
-    Returns structures that :func:`decode_symbol` uses for O(1)-per-bit
-    symbol resolution.
-
-    See Also:
-        :func:`decode_symbol` for the actual per-bit decode loop.
-    """
+    """Build fast-decode structures from bit-lengths."""
     max_len = max(bit_lengths) if any(bit_lengths) else 0
     return (*_build_decode_aux(bit_lengths, max_len), max_len)
 
@@ -141,7 +120,6 @@ def build_decode_table(
 def _build_decode_aux(
     bit_lengths: list[int], max_len: int
 ) -> tuple[list[int], list[int], list[list[int]]]:
-    """Auxiliary: construct decode structures from bit_lengths."""
 
     # 1. Count symbols per length
     bl_count = [0] * (max_len + 1)
@@ -167,7 +145,6 @@ def _build_decode_aux(
     # Sort each group by assigned code
     # Since we process in symbol order and next_code increments by 1,
     # within a length group the symbols are already in code order.
-    # (Canonical property: within a length, codes increase with symbol.)
 
     # Compute base_symbol offset
     symbol_offset = [0] * (max_len + 1)
@@ -180,28 +157,13 @@ def _build_decode_aux(
 
 
 def decode_symbol(
-    reader: "BitReader",                 # noqa: F821  — forward ref
+    reader: "BitReader",
     base_code: list[int],
     symbol_offset: list[int],
     symbols_by_len: list[list[int]],
     max_len: int,
 ) -> int:
-    """Decode a single symbol from *reader* using the canonical tables.
-
-    Args:
-        reader: BitReader positioned at compressed data.
-        base_code: First canonical code for each bit-length.
-        symbol_offset: Cumulative symbol index offset per length.
-        symbols_by_len: Symbols grouped by bit-length (ordered by code).
-        max_len: Maximum code length in bits.
-
-    Returns:
-        The decoded symbol (0–255).
-
-    Raises:
-        EOFError: unexpected end of stream.
-        ValueError: bit sequence doesn't match any code (corrupt data).
-    """
+    """Decode a single symbol from *reader* using canonical tables."""
     value = 0
     for length in range(1, max_len + 1):
         value = (value << 1) | reader.read_bit()
@@ -220,19 +182,12 @@ def decode_symbol(
 
 
 def encode_data(
-    writer: "BitWriter",                 # noqa: F821  — forward ref
+    writer: "BitWriter",
     data: bytes,
     codes: list[int],
     bit_lengths: list[int],
 ) -> None:
-    """Encode *data* using canonical Huffman codes and write to *writer*.
-
-    Args:
-        writer: BitWriter to receive the compressed bitstream.
-        data: Raw bytes to encode.
-        codes: 256-element canonical code table.
-        bit_lengths: 256-element bit-length table.
-    """
+    """Encode *data* using canonical codes, write to *writer*."""
     for byte in data:
         code = codes[byte]
         nbits = bit_lengths[byte]

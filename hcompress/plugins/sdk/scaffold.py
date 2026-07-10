@@ -1,7 +1,4 @@
-"""Plugin scaffolding — generate a ready-to-edit plugin skeleton.
-
-Supports all 10 plugin types with metadata included.
-"""
+"""Plugin scaffolding — generate ready-to-edit plugin skeleton for all 10 types."""
 
 from __future__ import annotations
 
@@ -339,15 +336,12 @@ def scaffold(name: str, plugin_type: str, output_dir: str = ".") -> str:
     """Generate a plugin skeleton file.
 
     Args:
-        name: Plugin name (kebab-case, e.g. ``"my-bomb-guard"``).
-        plugin_type: One of: ``decompress-hook``, ``compress-hook``,
-            ``extension``, ``checksum``, ``transform``, ``codec``,
-            ``filter``, ``matchfinder``, ``io-backend``,
-            ``block-splitter``, ``observer``.
+        name: Plugin name (kebab-case, e.g. "my-bomb-guard").
+        plugin_type: One of the supported plugin types.
         output_dir: Directory to write the file to.
 
     Returns:
-        The path to the generated file.
+        Path to the generated file.
     """
     if plugin_type not in _TEMPLATES:
         available = ", ".join(sorted(_TEMPLATES))

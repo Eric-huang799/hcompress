@@ -1,10 +1,4 @@
-"""Compression / decompression pipeline orchestrator.
-
-The engine composes all interfaces (codec, transform, filter, checksum,
-hooks, observers, extensions) into a linear pipeline.  Every interface
-parameter is optional — when None the engine falls back to a sensible
-built-in default.
-"""
+"""Compression / decompression pipeline orchestrator — composes all interfaces into a linear pipeline."""
 
 from __future__ import annotations
 
@@ -57,12 +51,11 @@ if TYPE_CHECKING:
 @dataclass
 class CompressStats:
     """Result of a compression run."""
-
     input_path: str = ""
     output_path: str = ""
     original_size: int = 0
     compressed_size: int = 0
-    ratio: float = 1.0           # compressed / original
+    ratio: float = 1.0
     elapsed_ms: float = 0.0
     checksum: bytes = b""
     header_size: int = 0
@@ -71,7 +64,6 @@ class CompressStats:
 @dataclass
 class DecompressStats:
     """Result of a decompression run."""
-
     input_path: str = ""
     output_path: str = ""
     original_size: int = 0
@@ -85,39 +77,31 @@ class DecompressStats:
 
 @dataclass
 class CompressConfig:
-    """Compression pipeline configuration.
-
-    Every interface field defaults to None — the engine substitutes
-    a built-in implementation automatically.  When *registry* is set,
-    its plugins are merged into the respective fields (explicitly
-    provided plugins take precedence).
-    """
-
+    """Compression pipeline config — None fields get built-in defaults, registry plugins auto-merge."""
     level: int = 6
-    entropy_coder: IEntropyCodec | None = None     # default: CanonicalHuffman
+    entropy_coder: IEntropyCodec | None = None
     transforms: list[ITransform] = field(default_factory=list)
     filters: list[IFilter] = field(default_factory=list)
-    checksum: IChecksum | None = None               # default: CRC32
-    io_backend: IIOBackend | None = None            # default: FileIO
-    block_splitter: IBlockSplitter | None = None    # default: single-block
+    checksum: IChecksum | None = None
+    io_backend: IIOBackend | None = None
+    block_splitter: IBlockSplitter | None = None
     hooks: list[ICompressHook] = field(default_factory=list)
     observers: list[IObserver] = field(default_factory=list)
     extensions: list[IExtension] = field(default_factory=list)
-    registry: object | None = None                  # PluginRegistry — auto-merge if set
+    registry: object | None = None
 
 
 @dataclass
 class DecompressConfig:
-    """Decompression pipeline configuration."""
-
-    checksum: IChecksum | None = None               # default: CRC32
-    io_backend: IIOBackend | None = None            # default: FileIO
+    """Decompression pipeline config."""
+    checksum: IChecksum | None = None
+    io_backend: IIOBackend | None = None
     transforms: list[ITransform] = field(default_factory=list)
     filters: list[IFilter] = field(default_factory=list)
     hooks: list[IDecompressHook] = field(default_factory=list)
     observers: list[IObserver] = field(default_factory=list)
     extensions: list[IExtension] = field(default_factory=list)
-    registry: object | None = None                  # PluginRegistry — auto-merge if set
+    registry: object | None = None
 
 
 # ── defaults ─────────────────────────────────────────────────────────────────
@@ -128,15 +112,7 @@ def _default_checksum() -> IChecksum:
 
 
 def _merge_registry(config: CompressConfig | DecompressConfig) -> None:
-    """Merge plugins from a PluginRegistry into *config* if one is set.
-
-    Uses ``get_enabled_*()`` so that disabled plugins are automatically
-    skipped.  Explicitly-provided plugins take precedence over registry ones.
-
-    Also checks the ``HCOMPRESS_DISABLED_PLUGINS`` environment variable
-    (comma-separated plugin names) — used by v2 Electron to session-disable
-    plugins from the Plugin Manager UI.
-    """
+    """Merge enabled plugins from registry into config, applying HCOMPRESS_DISABLED_PLUGINS env var."""
     reg = getattr(config, "registry", None)
     if reg is None:
         return
@@ -553,11 +529,7 @@ def decompress(
 
 
 def _safe_call(label: str, fn, *args) -> None:
-    """Call *fn* and catch exceptions so one misbehaving hook can't kill the pipeline.
-
-    Set env ``HCOMPRESS_DEBUG_PLUGINS=1`` to print full tracebacks instead of
-    swallowing errors silently.
-    """
+    """Call *fn*, catch exceptions — set HCOMPRESS_DEBUG_PLUGINS=1 for tracebacks."""
     debug_plugins = os.environ.get("HCOMPRESS_DEBUG_PLUGINS", "") == "1"
     try:
         fn(*args)
@@ -573,7 +545,7 @@ def _safe_call(label: str, fn, *args) -> None:
 
 
 def _safe_call_data(label: str, fn, ctx, data: bytes, stage: str, *, fallback: bytes) -> bytes:
-    """Like _safe_call but for hooks that return (possibly modified) data."""
+    """Like _safe_call but for hooks returning (possibly modified) data."""
     debug_plugins = os.environ.get("HCOMPRESS_DEBUG_PLUGINS", "") == "1"
     try:
         result = fn(ctx, data, stage)
@@ -591,7 +563,7 @@ def _safe_call_data(label: str, fn, ctx, data: bytes, stage: str, *, fallback: b
 
 
 def _safe_call_bool(label: str, fn, *args) -> bool:
-    """Like _safe_call but expects a bool return (defaulting to True on error)."""
+    """Like _safe_call but expects bool return (defaults True on error)."""
     debug_plugins = os.environ.get("HCOMPRESS_DEBUG_PLUGINS", "") == "1"
     try:
         result = fn(*args)

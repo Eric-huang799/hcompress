@@ -1,17 +1,6 @@
 """Directory archiver — pack/unpack folders into a single byte stream.
 
-Format (little-endian):
-
-    For each entry:
-      [4 bytes: path_len  (uint32 LE)]    0 = end-of-archive marker
-      [path_len bytes: rel_path (UTF-8)]
-      [8 bytes: file_size  (uint64 LE)]
-      [file_size bytes: content]
-
-The resulting byte stream is then compressed by the standard Huffman
-engine.  On decompression the flag ``FLAG_DIRECTORY`` in the HCF
-header tells the engine to unpack the decoded bytes as a directory
-tree.
+Format: [path_len:u32][rel_path:UTF-8][file_size:u64][content] per entry, terminated by path_len=0.
 """
 
 from __future__ import annotations
@@ -21,18 +10,12 @@ import struct
 from pathlib import Path
 
 # HCF flags extension
-FLAG_DIRECTORY = 1 << 8  # bit 8: archive contains a directory tree
+FLAG_DIRECTORY = 1 << 8
 
-_TERMINATOR = struct.pack("<I", 0)  # path_len = 0 → end
+_TERMINATOR = struct.pack("<I", 0)
 
 
 def pack_dir(dir_path: str, on_skip=None) -> tuple[bytes, int]:
-    """Walk *dir_path* and produce an archive byte stream.
-
-    Only regular files are included.  Empty directories, symlinks,
-    and files that cannot be read (permission / locked) are silently
-    skipped.  Returns ``(archive_bytes, skipped_count)``.
-    """
     buf = bytearray()
     base = Path(dir_path).resolve()
     skipped = 0
@@ -60,7 +43,6 @@ def pack_dir(dir_path: str, on_skip=None) -> tuple[bytes, int]:
         for name in sorted(files):
             full = os.path.join(root, name)
             try:
-                # skip locked / unreadable files
                 if not os.access(full, os.R_OK):
                     skipped += 1
                     if on_skip:
@@ -85,14 +67,6 @@ def pack_dir(dir_path: str, on_skip=None) -> tuple[bytes, int]:
 
 
 def unpack_dir(data: bytes, output_dir: str) -> list[str]:
-    """Extract an archive byte stream into *output_dir*.
-
-    If *output_dir* already exists and is non-empty, files inside it
-    may be overwritten.  This is intentional — use ``-f`` / ``--force``
-    semantics in the caller if needed.
-
-    Returns a list of created file paths.
-    """
     os.makedirs(output_dir, exist_ok=True)
     created: list[str] = []
     offset = 0
@@ -128,5 +102,4 @@ def unpack_dir(data: bytes, output_dir: str) -> list[str]:
 
 
 def is_dir_archive(header_flags: int) -> bool:
-    """Check whether an HCF file contains a directory archive."""
     return bool(header_flags & FLAG_DIRECTORY)

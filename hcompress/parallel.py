@@ -1,16 +1,8 @@
 """Parallel block compression / decompression using ProcessPoolExecutor.
 
-Multi-block HCF format (extended):
-    [standard HCF header with FLAG_MULTI_BLOCK set]
-    [4 bytes: block_count (uint32 LE)]
-    [for each block:
-        [4 bytes: block_size (uint32 LE) — compressed bytes]
-        [block_size bytes: compressed block data]
-    ]
-
-Each block is an independent mini-HCF stream.  Blocks are
-compressed/decompressed in parallel using multiple processes
-to bypass the Python GIL.
+Multi-block HCF format:
+    [standard HCF header with FLAG_MULTI_BLOCK]
+    [4 bytes: block_count] [for each block: 4 bytes size + compressed data]
 """
 
 from __future__ import annotations
@@ -23,11 +15,10 @@ from hcompress.canonical import freq_table, canonical_from_freq, build_decode_ta
 from hcompress.bitstream import BitWriter, BitReader
 from hcompress.format import MAGIC, VERSION_V1, FLAG_HAS_EXTENSION, _crc16
 
-FLAG_MULTI_BLOCK = 1 << 9  # bit 9
+FLAG_MULTI_BLOCK = 1 << 9
 
 
 def _compress_block(args) -> bytes:
-    """Compress a single block (picklable for ProcessPoolExecutor)."""
     data, level = args
     freq = freq_table(data)
     codes, blens = canonical_from_freq(freq)
@@ -56,7 +47,6 @@ def _compress_block(args) -> bytes:
 
 
 def _decompress_block(data: bytes) -> bytes:
-    """Decompress a single mini-HCF block (picklable)."""
     blens = list(data[12:268])
     original_size = struct.unpack_from("<Q", data, 268)[0]
     payload = data[276:]
@@ -87,7 +77,6 @@ def _decompress_block(data: bytes) -> bytes:
 def compress_parallel(
     input_path: str, output_path: str, level: int = 6, workers: int = 4
 ) -> dict:
-    """Compress a file using multiple threads.  Returns stats dict."""
     import os, time
     t0 = time.perf_counter()
 
@@ -136,7 +125,6 @@ def compress_parallel(
 
 
 def decompress_parallel(input_path: str, output_path: str, workers: int = 4) -> dict:
-    """Decompress a multi-block HCF file using multiple threads."""
     import os, time
     t0 = time.perf_counter()
 

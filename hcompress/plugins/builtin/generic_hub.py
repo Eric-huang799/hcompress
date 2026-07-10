@@ -1,11 +1,4 @@
-"""Seven hub expanders for all pipeline interface types.
-
-Each hub occupies 1 slot of its type and exposes a configurable number
-of sub-slots.  Config is stored in 'hub_config.json' in the plugins directory.
-
-Hubs with max_slots > 1 chain sub-plugins; hubs with max_slots = 1
-simply delegate to the selected sub-plugin.
-"""
+"""Seven hub expanders for all pipeline interface types — chain/delegate sub-plugins via hub_config.json."""
 
 from __future__ import annotations
 
@@ -50,7 +43,6 @@ HUB_DESCRIPTIONS: dict[str, str] = {
 
 
 def _load_section(slot: str) -> list[str]:
-    """Read the chain for *slot* from hub_config.json."""
     path = _find_config()
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -108,7 +100,6 @@ def _find_plugin(name: str, iface: type):
 
 
 class _HubBase(ABC):
-    """Shared hub logic."""
 
     slot_type: ClassVar[str] = ""
     max_slots: ClassVar[int] = 1
