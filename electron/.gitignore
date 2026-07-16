@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+build/
+*.spec
+*.log
+.DS_Store
+Thumbs.db
+*.exe
+electron/hcompress-engine/

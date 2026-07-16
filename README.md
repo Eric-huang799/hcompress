@@ -1,12 +1,9 @@
-# hcompress
+# HCompress 统一仓库
 
-**High-performance Canonical Huffman compression tool with plugin architecture.**
-
-**English** | [中文](README_CN.md)
+**数据结构课程设计 — 基于规范哈夫曼编码的高性能压缩工具**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com)
-[![Tests](https://img.shields.io/badge/Tests-69%2F69%20passed-green)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
@@ -121,25 +118,21 @@ Offset  Size   Field
 24+N    E      Extension data (JSON, pluggable)
 ```
 
-## Project Structure
+## 仓库结构
 
 ```
 hcompress/
-├── hcompress/
-│   ├── interfaces/      # 10 ABC interfaces
-│   ├── plugins/
-│   │   ├── registry.py  # auto-discovery & loading
-│   │   ├── builtin/     # BombGuard (built-in)
-│   │   └── sdk/         # no-op base classes + scaffold
-│   ├── c_ext/           # C-accelerated hot paths
-│   ├── engine.py        # compression pipeline
-│   ├── canonical.py     # Huffman tree & codec
-│   ├── cli.py           # Click + Rich CLI
-│   ├── gui.py           # tkinter GUI
-│   └── format.py        # HCF header read/write
-├── demo/index.html      # 3D architecture + ECharts demo
-├── tests/               # 69 tests
-└── dist/                # standalone .exe builds
+├── hcompress/          # Python 核心引擎（CLI + GUI + 插件系统）
+│   ├── engine.py       # 压缩管线编排
+│   ├── canonical.py    # 规范哈夫曼编解码
+│   ├── interfaces/     # 10 个插件抽象接口
+│   ├── plugins/        # 插件注册表 + 内置插件
+│   └── c_ext/          # C 扩展加速
+├── electron/           # Electron 桌面应用（V2.3.0 跨平台 GUI）
+├── android/            # Android 移动端应用
+├── docs/               # PPT、结题报告、Demo 文档
+├── pyproject.toml
+└── hcompress.spec      # PyInstaller 打包配置
 ```
 
 ## Build Standalone EXE
